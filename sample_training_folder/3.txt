@@ -1,0 +1,7 @@
+All of the machine language stuff coming out lately doesn’t affect you if you are developing with embedded microcontrollers, right? Perhaps not. Microsoft Research India wants you to use their EdgeML tool to do machine learning tasks such as gesture recognition in tiny devices like an Arduino Uno. According to the developers, you might need as little as 2 KB of RAM. There’s no network connection required and the work is using Tensorflow underneath, so it is compatible with much of what you’ll find for bigger computers.
+
+If you add processing power, you can get more capability. For example, one of the demonstrations is a wake-word recognizer on a Raspberry Pi Zero (although the page for that demo seems to be missing at the moment; try the GesturePod, instead).
+
+The system generally uses Python, but there are efficient C++ implementations for selected algorithms. The code lives on GitHub. There are also a number of research papers about each tool that you can find on the GitHub page. There’s also a recent paper on MinUn, an attempt to make things even more efficient for ARM microcontrollers. In particular, MinUn can store approximate numbers to save space, allows for variable precision of tensors, and tries to reduce memory fragmentation, an important feature for CPUs that don’t have memory management units.
+
+If you haven’t studied TensorFlow yet, start here. Why use something like this with a microcontroller? How about smarter robots?

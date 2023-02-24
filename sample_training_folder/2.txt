@@ -1,0 +1,14 @@
+Get the most fascinating science news stories of the week in your inbox every Friday.
+
+Source: Journal of Geophysical Research: Solid Earth
+Zircons are common, hardy minerals that can be found in rocks up to 4 billion years old. Their structure and texture can reflect the conditions in which they formed, earning them a reputation as nature’s time capsules. And according to new research, with the power of machine learning, scientists can mine zircon textures to identify valuable mineral deposits.
+
+In a new study, Nathwani et al. developed a method to distinguish minute differences between zircon grains formed in copper-associated rocks and granitic rocks. Their method could help scientists search for mineral deposits and probe the origins of different sediments.
+
+The researchers used a machine learning tool called a convolutional neural network (CNN), which specializes in image analysis. Using samples collected in southern Peru, a region that produces much of the world’s copper, they found that the CNN could identify shapes and textures unique to zircons found near copper deposits. The model could also distinguish these copper-associated zircons from zircons found in other kinds of rock in the region with an 85% success rate.
+
+Copper has broad industrial applications, from electronics to construction, and the study suggests that pairing machine learning with more traditional techniques could make it easier to explore and identify copper deposits. (Journal of Geophysical Research: Solid Earth, https://doi.org/10.1029/2022JB025933, 2023)
+
+—Rachel Fritts (@rachel_fritts), Science Writer
+
+Citation: Fritts, R. (2023), Prospecting for copper with machine learning and zircons, Eos, 104, https://doi.org/10.1029/2023EO230066. Published on 23 February 2023. Text © 2023. AGU. CC BY-NC-ND 3.0Except where otherwise noted, images are subject to copyright. Any reuse without express permission from the copyright owner is prohibited. Related
