@@ -54,14 +54,20 @@ def build_index(in_dir, out_dict, out_postings):
         for sentence in sentences:
             # Tokenize the sentence into words.
             words = word_tokenize(sentence)
+            stemmed_words = [stemmer.stem(word.lower()) for word in words]
 
-            for word in words:
-                stemmed_word = stemmer.stem(word.lower())
-                # Add the stemmed token to the index
-                if stemmed_word not in index:
-                    index[stemmed_word] = []
-                if doc_id not in index[stemmed_word]:
-                    index[stemmed_word].append(doc_id)
+            for i, token in enumerate(stemmed_words):
+                if token not in index:
+                    # Add a new entry to the index for the token
+                    index[token] = {'freq': 0, 'postings': {}}
+                # Increment the frequency count for the token
+                index[token]['freq'] += 1
+                doc_id = os.path.splitext(doc_id)[0]
+                if doc_id not in index[token]['postings']:
+                    # Add a new entry to the postings list for the document
+                    index[token]['postings'][doc_id] = []
+                # Append the position of the token in the document to the postings list
+                index[token]['postings'][doc_id].append(i)
     
     # Write the index to a file called dictionary.txt
     with open(out_dict, 'w') as f:
@@ -70,10 +76,8 @@ def build_index(in_dir, out_dict, out_postings):
 
     # Create a posting list file called postings.txt
     with open(out_postings, 'w') as f:
-        # Loop over the index and write each posting list to the file
-        for term, posting_list in index.items():
-            posting_list_str = ','.join(os.path.splitext(posting)[0] for posting in posting_list)
-            f.write(f"{term}:{posting_list_str}\n")
+        for token, data in index.items():
+            f.write(f"{token}:{data['freq']} | {json.dumps(data['postings'])}\n")
 
 
 input_directory = output_file_dictionary = output_file_postings = None
