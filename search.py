@@ -16,6 +16,24 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     # This is an empty method
     # Pls implement your code in below
 
+
+    # Open the dictionary file and postings file
+
+    # Basic operators ( () -> NOT -> AND -> OR )
+    # A AND B
+    # A OR B
+    # A OR NOT B
+    # A AND NOT B
+
+    # logic to rearrange order of operations,
+    # https://en.wikipedia.org/wiki/Binary_expression_tree
+
+    # corner cases
+    # operators not in upper case
+
+
+
+
 dictionary_file = postings_file = file_of_queries = output_file_of_results = None
 
 try:
