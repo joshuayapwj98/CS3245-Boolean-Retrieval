@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["-i", "./sample_training_folder", "-d", "dictionary.txt", "-p", "postings.txt"]
+            "args": ["-i", "/Users/joshuayap/nltk_data/corpora/reuters/training", "-d", "dictionary.txt", "-p", "postings.txt"]
         }
     ]
 }
