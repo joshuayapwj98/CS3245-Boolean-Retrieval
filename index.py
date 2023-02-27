@@ -23,6 +23,8 @@ import shutil
 import sys
 import getopt
 
+import linecache
+
 import nltk
 from nltk.corpus import PlaintextCorpusReader
 from nltk.tokenize import word_tokenize, sent_tokenize
@@ -35,9 +37,10 @@ import pickle
 stemmer = PorterStemmer()
 BLOCK_SIZE = 2000
 INTERMEDIATE_BLOCK = "blocks"
+
+# global variables
 block_no = 0
-postings_list = "postings_list"
-frequency = "frequency"
+
 
 def usage():
     print("usage: " + sys.argv[0] + " -i directory-of-documents -d dictionary-file -p postings-file")
@@ -69,9 +72,7 @@ def build_index(in_dir, out_dict, out_postings):
                 block_no += 1
         
     final_block_no = merge_blocks_on_disk(0, block_no)
-    print(final_block_no)
-    # write_dictionary_and_postings_to_disk(merged_dictionary)
-    # TODO: Remove blocks folder after merging all the files
+    write_dictionary_postings_to_disk(final_block_no, out_dict, out_postings)
 
 
 def index_file(doc, index, doc_id):
@@ -81,14 +82,10 @@ def index_file(doc, index, doc_id):
         stemmed_words = [stemmer.stem(word.lower()) for word in words]
         for i, word in enumerate(stemmed_words):
             if word in index:
-                if doc_id not in index[word][postings_list]:
-                    index[word][frequency] += 1
-                    index[word][postings_list].append(doc_id)
+                if doc_id not in index[word]:
+                    index[word].append(doc_id)
             else:
-                index[word] = {
-                    postings_list: [doc_id],
-                    frequency: 1
-                }
+                index[word] = [doc_id]
 
 
 def write_block_to_disk(index, block_no):
@@ -97,7 +94,6 @@ def write_block_to_disk(index, block_no):
         output_dict = {term: values for term, values in sorted_index}
         output_line = json.dumps(output_dict)
         f.write(output_line)
-
 
 def merge_blocks_on_disk(start, end):
     if end - start >= 1:
@@ -112,6 +108,7 @@ def merge_blocks_on_disk(start, end):
 
 def merge(left, right):
     global block_no
+
     left_dictionary = {}
     right_dictionary = {}
     merged_dictionary = {}
@@ -124,15 +121,10 @@ def merge(left, right):
         if term in left_dictionary:
             # if a term in right_dictionary can be found in left_dictionary, 
             # merge the posting list, increment document frequency and add the term into merged_dictionary
-            left_posting_list = left_dictionary[term][postings_list]
-            right_posting_list = prop[postings_list]
-            left_freq = left_dictionary[term][frequency]
-            right_freq = prop[frequency]
+            left_posting_list = left_dictionary[term]
+            right_posting_list = prop
             merged_posting_list = sorted(left_posting_list + right_posting_list)
-            merged_dictionary[term] = {
-                    postings_list: merged_posting_list,
-                    frequency: left_freq + right_freq
-                }
+            merged_dictionary[term] = merged_posting_list
         else:
             # if a term in right_dictionary cannot be found in left_dictionary, add the term to merged_dictionary
             merged_dictionary[term] = prop
@@ -154,10 +146,18 @@ def merge(left, right):
 
     # return the index of the new merged block
     return block_no
- 
+    
+def write_dictionary_postings_to_disk(number, out_dict, out_postings):
+    merged_dictionary = {}
 
-# def write_dictionary_and_postings_to_disk(dictionary):
-
+    block_file_dir = INTERMEDIATE_BLOCK + f'/{number}'
+    with open(block_file_dir, 'r') as block_file, open(f'{out_dict}', 'w') as dictionary_file, open(f'{out_postings}', 'w') as postings_file:
+        merged_dictionary = json.load(block_file)
+        line_no = 1
+        for term, postings_list in merged_dictionary.items():
+            postings_file.write(term + " " + str(postings_list) + "\n")
+            dictionary_file.write(term + " " + str(len(postings_list)) + " " + str(line_no) + "\n")
+            line_no += 1
 
 input_directory = output_file_dictionary = output_file_postings = None
 
