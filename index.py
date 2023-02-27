@@ -24,6 +24,7 @@ import sys
 import getopt
 
 import linecache
+import math
 
 import nltk
 from nltk.corpus import PlaintextCorpusReader
@@ -155,8 +156,21 @@ def write_dictionary_postings_to_disk(number, out_dict, out_postings):
         merged_dictionary = json.load(block_file)
         line_no = 1
         for term, postings_list in merged_dictionary.items():
-            postings_file.write(term + " " + str(postings_list) + "\n")
-            dictionary_file.write(term + " " + str(len(postings_list)) + " " + str(line_no) + "\n")
+            sqrt_val = math.sqrt(len(postings_list))
+            skip_pointers_no = math.floor(sqrt_val)
+            skip_distance = math.floor(int(len(postings_list) / skip_pointers_no))
+            new_postings_list = []
+            next_index = 0
+            for i in range(len(postings_list)):
+                new_postings_list.append([postings_list[i]])
+                if skip_pointers_no != 0:
+                    if i == 0 or i == next_index:
+                        next_index = i+ skip_distance - 1
+                        new_postings_list[i].append(postings_list[next_index])
+                        skip_pointers_no -= 1
+
+            postings_file.write(term + " " + str(new_postings_list) + "\n")
+            dictionary_file.write(term + " " + str(len(new_postings_list)) + " " + str(line_no) + "\n")
             line_no += 1
 
 input_directory = output_file_dictionary = output_file_postings = None
