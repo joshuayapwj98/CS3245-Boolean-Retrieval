@@ -19,18 +19,28 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     perform searching on the given queries file and output the results to a file
     """
     print('running search on the queries...')
+    doc_id_set = {}
+    term_dictionary = {}
 
-    with open(f'{queries_file}.txt', "r") as queries_file, open(f'{results_file}.txt', "w") as results_file,\
-            open(f'{dict_file}', 'r') as dictionary_file, open(f'{postings_file}', 'r') as postings_file:
+    with open(f'{dict_file}', 'r+') as dictionary_file:
+        # Read the dictionary file as raw string
+        dictionary_text = dictionary_file.read()
+        # Split each line into an array
+        lines = dictionary_text.split('\n')
+        # Retrieve the set of document Id
+        doc_id_set = eval(lines[-1])
 
-        term_dictionary = {}
-
-        for line in dictionary_file:
+        # Iterate through each line of the dictionary (except the last line)
+        for i in range(len(lines) - 1):
+            line = lines[i]
             term, doc_frequency, file_ptr_pos = line.split()
             term_dictionary[term] = (doc_frequency, file_ptr_pos)
 
-        queries = queries_file.readlines()
-
+    with open(f'{queries_file}', "r") as queries_file, open(f'{postings_file}', 'r') as postings_file,\
+            open(f'{results_file}', "w") as results_file:
+        # Read the queries file as raw string
+        queries_text = queries_file.read()
+        queries = queries_text.split('\n')
         for query in queries:
             query_results = process_query(query, term_dictionary, postings_file)
             results_file.write(f'{query_results}\n')

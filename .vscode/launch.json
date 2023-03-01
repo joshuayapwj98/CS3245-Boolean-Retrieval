@@ -11,7 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["-i", "/Users/joshuayap/nltk_data/corpora/reuters/training", "-d", "dictionary.txt", "-p", "postings.txt"]
+            "args": ["-d", "dictionary.txt", "-p", "postings.txt", "-q", "queries.txt", "-o", "results.txt"]
+            // "args": ["-i", "/Users/joshuayap/nltk_data/corpora/reuters/training", "-d", "dictionary.txt", "-p", "postings.txt"]
         }
     ]
 }
