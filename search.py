@@ -54,7 +54,7 @@ def run_search(dict_file, postings_file, queries_file, results_file):
                     string_builder = ' '.join(str(i) for i in id)
                 else:   
                     string_builder += str(id) + " "
-            string_builder.rstrip(" ")
+            string_builder.strip()
             results_file.write(string_builder)
             if i < len(queries) - 1:
                 results_file.write("\n")
@@ -72,7 +72,14 @@ def get_postfix(infix):
     tokens = split_string(infix)
 
     for token in tokens:
-        if token == '(':
+        if token in ops_dict:
+            if operators:
+                # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
+                while operators[-1] in ops_dict and \
+                    ops_dict[operators[-1]] > ops_dict[token]:
+                    postfix.append(operators.pop())
+            operators.append(token)
+        elif token == '(':
             operators.append(token)
         elif token == ')':
             while len(operators) > 0 and operators[-1] != "(":
@@ -82,13 +89,6 @@ def get_postfix(infix):
                 exit()
             if operators[-1] == "(":
                 operators.pop()
-        elif token in ops_dict:
-            if operators:
-                # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
-                while operators[-1] in ops_dict and \
-                    ops_dict[operators[-1]] > ops_dict[token]:
-                    postfix.append(operators.pop())
-            operators.append(token)
         else:
             postfix.append(stemmer.stem(token.lower()))
     
