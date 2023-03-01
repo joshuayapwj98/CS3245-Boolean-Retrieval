@@ -72,14 +72,7 @@ def get_postfix(infix):
     tokens = split_string(infix)
 
     for token in tokens:
-        if token in ops_dict:
-            if operators:
-                # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
-                while operators[-1] in ops_dict and \
-                    ops_dict[operators[-1]] > ops_dict[token]:
-                    postfix.append(operators.pop())
-            operators.append(token)
-        elif token == '(':
+        if token == '(':
             operators.append(token)
         elif token == ')':
             while len(operators) > 0 and operators[-1] != "(":
@@ -89,6 +82,13 @@ def get_postfix(infix):
                 exit()
             if operators[-1] == "(":
                 operators.pop()
+        elif token in ops_dict:
+            if operators:
+                # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
+                while operators[-1] in ops_dict and \
+                    ops_dict[operators[-1]] > ops_dict[token]:
+                    postfix.append(operators.pop())
+            operators.append(token)
         else:
             postfix.append(stemmer.stem(token.lower()))
     
@@ -243,7 +243,6 @@ def process_or_operator(operands):
 
         If there is a NOT operator, then the NOT operator will be the last operand.
         """
-    results = []
     prev_postings_list = []
     while len(operands) > 0:
         if len(prev_postings_list) == 0:
@@ -252,9 +251,8 @@ def process_or_operator(operands):
 
         curr = operands.pop()
         prev_postings_list = union_merge(prev_postings_list, curr)
-        results.append(prev_postings_list)
 
-    return results
+    return prev_postings_list
 
 def union_merge(postings_list1, postings_list2):
     """
