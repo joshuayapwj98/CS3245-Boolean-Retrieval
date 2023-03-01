@@ -341,15 +341,16 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
     temp_results = []
 
     i = 0
-    while i < len(query_list):
-        if query_list[i] == "AND":
-            AND_operands = [query_list[i - 1], query_list[i + 1]]
+    while i < len(query_list) - 1:
+        if query_list[i + 1] == "AND":
+            AND_operands = [query_list[i], query_list[i + 2]]
             k = 1
-            while i + 2 * k < len(query_list) and query_list[i + 2 * k] == "AND":
-                AND_operands.append(query_list[i + k])
+            while (i + 1) + 2 * k < len(query_list) and query_list[(i + 1) + 2 * k] == "AND":
+                AND_operands.append(query_list[i + 2 + 2 * k])
                 k += 1
+            print(AND_operands)
             temp_results.append(process_and_operator(AND_operands, term_dictionary, postings_file))
-            i = i + 2 * k
+            i = i + 1 + 2 * k
             continue
 
         temp_results.append(query_list[i])
@@ -402,8 +403,8 @@ for o, a in opts:
     else:
         assert False, "unhandled option"
 
-if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
-    usage()
-    sys.exit(2)
+# if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
+#     usage()
+#     sys.exit(2)
 
-run_search(dictionary_file, postings_file, file_of_queries, file_of_output)
+run_search("dictionary.txt", "postings.txt", "queries.txt", "results.txt")
