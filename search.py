@@ -85,9 +85,14 @@ def process_query(query, term_dictionary, postings_file):
         split_query_without_parenthesis.append(split_query_stemmed[i])
         i += 1
 
-        return process_query_no_parenthesis(split_query_without_parenthesis)
+        return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
 
 def process_or_operator(operands, term_dictionary, postings_file):
+    """
+        Process OR operators and operands.
+
+        If there is a NOT operator, then the NOT operator will be the last operand.
+        """
     assert len(operands) > 0, "OR operator must have at least one operand."
 
     temp_results = get_postings_list(operands[0])
@@ -97,6 +102,35 @@ def process_or_operator(operands, term_dictionary, postings_file):
     index = 1
     while index < len(operands):
         curr_operand = operands[index]
+
+
+    pq = PriorityQueue(len(args))
+    temp_results = []
+    not_operands = []
+
+    for operand in operands:
+        if isinstance(operand, list):  # NOT operator in the form ["NOT", "word"]
+            not_operands.append(operand[1])
+            continue
+
+        # smaller doc frequency -> higher priority
+        doc_frequency = int(term_dictionary[operand][0])
+        pq.put(operand, 1 / doc_frequency)
+
+    while not pq.empty():
+        if len(temp_results) == 0:
+            temp_results = get_postings_list(pq.get(), term_dictionary, postings_file)
+            continue
+        curr = pq.get()
+        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+        temp_results = intersect_merge(temp_results, posting_list_curr)
+
+    while len(not_operands) > 0:
+        curr = not_operands.pop()
+        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+        temp_results = intersect_merge_NOT(temp_results, posting_list_curr)
+
+    return temp_results
 
 
     return temp_results
@@ -254,7 +288,9 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
         i += 1
 
     OR_operands = [i for i in temp_results if i != "OR"]
-    return process_or_operator(OR_operands, term_dictionary, postings_file)
+    if len(OR_operands) > 0:
+        temp_results = process_or_operator(OR_operands, term_dictionary, postings_file)
+    return temp_results
 
 
 def get_postings_list(term, term_dictionary, postings_file, temp_dict = None):
