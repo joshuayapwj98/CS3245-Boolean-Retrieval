@@ -55,8 +55,14 @@ def process_query(query, term_dictionary, postings_file):
     split_query = query.split()
 
     # perform stemming
-    split_query_stemmed = [stemmer.stem(token.lower())
-                           for token in split_query if token not in OPERANDS_LIST]
+    # split_query_stemmed = [stemmer.stem(token.lower())
+    #                        for token in split_query if token]
+    split_query_stemmed = []
+    for token in split_query:
+        if token not in OPERANDS_LIST:
+            split_query_stemmed.append(stemmer.stem(token.lower()))
+        else:
+            split_query_stemmed.append(token)
 
     split_query_without_parenthesis = []
     i = 0
@@ -85,27 +91,18 @@ def process_query(query, term_dictionary, postings_file):
         split_query_without_parenthesis.append(split_query_stemmed[i])
         i += 1
 
-        return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
+    return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
 
 def process_or_operator(operands, term_dictionary, postings_file):
     """
-        Process OR operators and operands.
+        Process OR operators.
 
         If there is a NOT operator, then the NOT operator will be the last operand.
         """
     assert len(operands) > 0, "OR operator must have at least one operand."
 
-    temp_results = get_postings_list(operands[0])
-
-    # TODO : OR merging for operands with NOT operator
-
-    index = 1
-    while index < len(operands):
-        curr_operand = operands[index]
-
-
-    pq = PriorityQueue(len(args))
     temp_results = []
+    normal_operands = []
     not_operands = []
 
     for operand in operands:
@@ -113,25 +110,20 @@ def process_or_operator(operands, term_dictionary, postings_file):
             not_operands.append(operand[1])
             continue
 
-        # smaller doc frequency -> higher priority
-        doc_frequency = int(term_dictionary[operand][0])
-        pq.put(operand, 1 / doc_frequency)
+        normal_operands.append(operand)
 
-    while not pq.empty():
+    while len(normal_operands) > 0:
         if len(temp_results) == 0:
-            temp_results = get_postings_list(pq.get(), term_dictionary, postings_file)
+            temp_results = get_postings_list(normal_operands.pop(), term_dictionary, postings_file)
             continue
-        curr = pq.get()
+
+        curr = normal_operands.pop()
         posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        temp_results = intersect_merge(temp_results, posting_list_curr)
+        temp_results = union_merge(temp_results, posting_list_curr)
 
-    while len(not_operands) > 0:
-        curr = not_operands.pop()
-        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        temp_results = intersect_merge_NOT(temp_results, posting_list_curr)
-
-    return temp_results
-
+    # process NOT operators
+    # A or not B or not C <=> not (not A and B and C)
+    # if len(not_operands) > 0:
 
     return temp_results
 
@@ -139,6 +131,30 @@ def union_merge(postings_list1, postings_list2):
     merged_postings_list = []
     p1 = p2 = 0
 
+    while p1 < len(postings_list1) and p2 < len(postings_list2):
+        list1_value, list1_skip_ptr = None, None
+        list2_value, list2_skip_ptr = None, None
+
+        if isinstance(postings_list1[p1], list):
+            list1_value, _ = postings_list1[p1]
+        else:
+            list1_value = postings_list1[p1]
+
+        if isinstance(postings_list2[p2], list):
+            list2_value, _ = postings_list2[p2]
+        else:
+            list2_value = postings_list2[p2]
+
+        if list1_value == list2_value:
+            merged_postings_list.append(list1_value)
+            p1 += 1
+            p2 += 1
+        elif list1_value < list2_value:
+            merged_postings_list.append(list1_value)
+            p1 += 1
+        else:
+            merged_postings_list.append(list2_value)
+            p2 += 1
 
     return merged_postings_list
 
@@ -339,27 +355,6 @@ for o, a in opts:
 #     usage()
 #     sys.exit(2)
 
-# run_search(dictionary_file, postings_file, file_of_queries, file_of_output)
+run_search("dictionary.txt", "postings.txt", "queries.txt", "results.txt")
 
-
-with open('dictionary.txt', 'r') as dictionary_file, open('postings.txt', 'r') as postings_file:
-
-    term_dictionary = {}
-
-    # Read the dictionary file as raw string
-    dictionary_text = dictionary_file.read()
-    # Split each line into an array
-    lines = dictionary_text.split('\n')
-    # Retrieve the set of document Id
-    doc_id_set = eval(lines[-1])
-
-    # Iterate through each line of the dictionary (except the last line)
-    for i in range(len(lines) - 1):
-        line = lines[i]
-        term, doc_frequency, file_ptr_pos = line.split()
-        term_dictionary[term] = (doc_frequency, file_ptr_pos)
-
-    operands = ['-0.6', '-0.6']
-
-    print(process_and_operator(operands, term_dictionary, postings_file))
 
