@@ -65,7 +65,9 @@ def process_query(query, term_dictionary, postings_file, doc_id_set):
     for token in split_query:
         if token not in OPERANDS_LIST:
             stemmer.stem(token.lower())
+
         split_query_stemmed.append(token)
+
 
     while i < len(split_query):
         # check for expressions in parentheses, and evaluate them
@@ -104,11 +106,11 @@ def process_or_operator(operands, term_dictionary, postings_file, doc_id_set):
     not_operands = []
 
     for operand in operands:
-        if isinstance(operand, list):  # NOT operator in the form ["NOT", "word"]
+        if isinstance(operand, list) and operand in term_dictionary:  # NOT operator in the form ["NOT", "word"]
             not_operands.append(operand[1])
             continue
-
-        normal_operands.append(operand)
+        if operand in term_dictionary:
+            normal_operands.append(operand)
 
     while len(normal_operands) > 0:
         if len(temp_results) == 0:
@@ -212,8 +214,13 @@ def process_and_operator(operands, term_dictionary, postings_file):
 
     for operand in operands:
         if isinstance(operand, list): # NOT operator in the form ["NOT", "word"]
-            not_operands.append(operand[1])
+            if operand[1] in term_dictionary:
+                not_operands.append(operand[1])
             continue
+
+        if operand not in term_dictionary:
+            print("Term {} not found in the dictionary.".format(operand))
+            return []
 
         # smaller doc frequency -> higher priority
         doc_frequency = int(term_dictionary[operand][0])
@@ -341,8 +348,8 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
     temp_results = []
 
     i = 0
-    while i < len(query_list) - 1:
-        if query_list[i + 1] == "AND":
+    while i < len(query_list):
+        if i < len(query_list) - 1 and query_list[i + 1] == "AND":
             AND_operands = [query_list[i], query_list[i + 2]]
             k = 1
             while (i + 1) + 2 * k < len(query_list) and query_list[(i + 1) + 2 * k] == "AND":
@@ -356,9 +363,12 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
         temp_results.append(query_list[i])
         i += 1
 
-    # OR_operands = [i for i in temp_results if i != "OR"]
-    # if len(OR_operands) > 0:
-    #     temp_results = process_or_operator(OR_operands, term_dictionary, postings_file, doc_id_set)
+    if len(temp_results) > 1:
+        print(temp_results)
+        OR_operands = [i for i in temp_results if i != "OR"]
+        print(OR_operands)
+        temp_results = process_or_operator(OR_operands, term_dictionary, postings_file, doc_id_set)
+
     return temp_results
 
 
