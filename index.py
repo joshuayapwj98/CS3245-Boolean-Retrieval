@@ -197,7 +197,13 @@ def write_dictionary_postings_to_disk(number, out_dict, out_postings, doc_id_set
             # Add the file_ptr_pos reference for each term for quick access
             dictionary_file.write(term + " " + str(len(new_postings_list)) + " " + str(file_ptr_pos) + "\n")
         
-        dictionary_file.write(str(doc_id_set))
+        postings_file.write("all_dict" + " ")
+        file_ptr_pos = postings_file.tell()
+        # Write the list to the file
+        postings_file.write(str(doc_id_set))
+        # Move the file_ptr_pos to the starting position of the array that was just written
+        postings_file.seek(file_ptr_pos + len(doc_id_set))
+        dictionary_file.write("all_dict" + " " + str(len(doc_id_set)) + " " + str(file_ptr_pos))
 
 def get_skip_pointers(postings_list):
     postings_list_builder = []

@@ -1,2 +1,3 @@
-pepsi AND coke OR pepsi AND coke
-challeng AND (chamber AND NOT champion) NOT chancellor
+there AND (the AND them AND thailand)
+there AND NOT (the AND them AND thailand)
+there OR (the AND them AND thailand)
