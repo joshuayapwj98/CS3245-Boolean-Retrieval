@@ -10,8 +10,8 @@ python3 index.py -i ./sample_training_folder -d dictionary.txt -p postings.txt
 Build phase:
 Note: need to find directory to where the reuters data set is installed on your local machine
 
-Jun Wei:
-
+Jun Wei (MacOS):
+python3 index.py -i /Users/tanju/nltk_data/corpora/reuters/training -d dictionary.txt -p postings.txt
 
 Joshua (MacOS):
 python3 index.py -i /Users/joshuayap/nltk_data/corpora/reuters/training -d dictionary.txt -p postings.txt
@@ -77,21 +77,21 @@ def build_index(in_dir, out_dict, out_postings):
                 block_no += 1
     et = time.time()
     elapsed_time = et - st
-    print('Time taken to index files:', elapsed_time, 'seconds')
+    print('Time taken to index files:', round(elapsed_time, 3), 'seconds')
     
     # Merge intermediate blocks into the final block
     st = time.time()
     final_block_no = merge_blocks_on_disk(0, block_no)
     et = time.time()
     elapsed_time = et - st
-    print('Time taken to merge:', elapsed_time, 'seconds')
+    print('Time taken to merge:', round(elapsed_time, 3), 'seconds')
     
     # Write final block into dictionary and postings file respectively
     st = time.time()
     write_dictionary_postings_to_disk(final_block_no, out_dict, out_postings)
     et = time.time()
     elapsed_time = et - st
-    print('Time taken to write dictionary and postings file:', elapsed_time, 'seconds')
+    print('Time taken to write dictionary and postings file:', round(elapsed_time, 3), 'seconds')
 
     print('End of indexing...')
 

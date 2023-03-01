@@ -1,10 +1,13 @@
 #!/usr/bin/python3
 import re
-import nltk
+from nltk.stem.porter import PorterStemmer
 import sys
 import getopt
 from queue import PriorityQueue
 
+# Final values
+stemmer = PorterStemmer()
+operands = ["AND", "OR", "NOT", "(", ")"]
 
 def usage():
     print("usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results")
@@ -16,60 +19,77 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     perform searching on the given queries file and output the results to a file
     """
     print('running search on the queries...')
-    # This is an empty method
-    # Pls implement your code in below
 
-    # Open the dictionary file and postings file
+    with open(f'{queries_file}.txt', "r") as queries_file, open(f'{results_file}.txt', "w") as results_file,\
+            open(f'{dict_file}', 'r') as dictionary_file, open(f'{postings_file}', 'r') as postings_file:
 
-    # logic to rearrange order of operations,
-    # https://en.wikipedia.org/wiki/Binary_expression_tree
+        term_dictionary = {}
 
-    # corner cases
-    # operators not in upper case
+        for line in dictionary_file:
+            term, doc_frequency, file_ptr_pos = line.split()
+            term_dictionary[term] = (doc_frequency, file_ptr_pos)
 
+        queries = queries_file.readlines()
 
-def process_query(query):
+        for query in queries:
+            query_results = process_query(query, term_dictionary, postings_file)
+            results_file.write(f'{query_results}\n')
+
+def process_query(query, term_dictionary, postings_file):
+    """
+    For each query, process the query and return the results (posting list)
+    """
+    assert len(query) <= 1024, "Query must be under 1024 characters."
+
     # tokenize the query
     split_query = query.split()
-    split_query_parenthesis_processed = []
 
+    # perform stemming
+    split_query_stemmed = [stemmer.stem(token.lower())
+                           for token in split_query if token not in operands]
+
+    split_query_without_parenthesis = []
     i = 0
     open_parenthesis_index = 0
-    close_parenthesis_index = 0
-    while i < len(split_query):
-        if split_query[i] == "(":
+    while i < len(split_query_stemmed):
+        # check for expressions in parentheses, and evaluate them
+        if split_query_stemmed[i] == "(":
             open_parenthesis_index = i
             i += 1
             continue
-        if split_query[i] == ")":
-            parenthesis_expression = split_query[open_parenthesis_index:i + 1]
-            processed_expression = process_parenthesis(parenthesis_expression)
-            split_query_parenthesis_processed.append(processed_expression)
+        if split_query_stemmed[i] == ")":
+            expression = split_query_stemmed[open_parenthesis_index:i + 1]
+            assert "(" not in expression, "no nested parenthesis."
+            processed_expression = process_query_no_parenthesis(expression, term_dictionary, postings_file)
+            split_query_without_parenthesis.append(processed_expression)
             i += 1
             continue
-        if split_query[i] == "NOT":
-            split_query_parenthesis_processed.append(split_query[i:i + 2])
+
+        # group "NOT" and the next word together (e.g. "NOT", "apple" -> ["NOT", "apple"])
+        if split_query_stemmed[i] == "NOT":
+            split_query_without_parenthesis.append(split_query_stemmed[i:i + 2])
             i += 2
             continue
-        split_query_parenthesis_processed.append(split_query[i])
+
+        # for all other cases, just add the word to the list
+        split_query_without_parenthesis.append(split_query_stemmed[i])
         i += 1
 
+def process_or_operator(operands, term_dictionary, postings_file):
+    assert len(operands) > 0, "OR operator must have at least one operand."
 
-def process_parenthesis(parenthesis_expression):
-    return process_query_no_parenthesis(parenthesis_expression)
+    temp_results = get_postings_list(operands[0])
 
+    # TODO : OR merging for operands with NOT operator
 
-def process_or_operator(operands):
-    temp_results = []
-
-    # TODO : OR merging
-    # for operand in args:
-    # or merging
+    index = 1;
+    while index < len(operands):
+        print("")
 
     return temp_results
 
 
-def process_and_operator(operands):
+def process_and_operator(operands, term_dictionary, postings_file):
     pq = PriorityQueue(len(args))
     temp_results = []
 
@@ -79,15 +99,15 @@ def process_and_operator(operands):
             continue
 
         # TODO: get the doc_frequency from the dictionary
-        doc_frequency = 99
-        pq.put(1 / dict.get(), operand)
+        doc_frequency = term_dictionary[operand]
+        pq.put(-term_dictionary[operand], operand)
 
     while not pq.empty():
         curr = pq.get()
         # TODO: get postings list from postings file and merge
 
 
-def process_query_no_parenthesis(query_list):
+def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
     temp_results = []
 
     i = 0
@@ -99,7 +119,7 @@ def process_query_no_parenthesis(query_list):
             while i + 2 * k < len(query_list) and query_list[i + 2 * k] == "AND":
                 AND_operands.append(query_list[i + k])
                 k += 1
-            temp_results.append(process_and_operator(AND_operands))
+            temp_results.append(process_and_operator(AND_operands, term_dictionary, postings_file))
             i = i + 2 * k
             continue
 
@@ -107,18 +127,27 @@ def process_query_no_parenthesis(query_list):
         i += 1
 
     OR_operands = [i for i in temp_results if i != "OR"]
-    return process_or_operator(OR_operands)
+    return process_or_operator(OR_operands, term_dictionary, postings_file)
 
 
-def get_postings_list(term, temp_dict, actual_positings):
+def get_postings_list(term, term_dictionary, postings_file, temp_dict):
     if term[0] == "*":
         return temp_dict.get(term[1:])
 
-    # get postings list from postings file
-    # remove punctuations
-    # remove stop words
-    # stem the words / lemmatize
-    # return the list of tokens
+    file_ptr_pos = term_dictionary.get(term)[1]
+
+    # Move the file pointer to the start of the array
+    postings_file.seek(int(file_ptr_pos))
+
+    # Read the bytes from the file until the end of the line
+    line_bytes = postings_file.readline()
+
+    # Remove the newline character from the end of the line
+    line_bytes = line_bytes.rstrip('\n')
+
+    # Convert the string back to a list
+    new_postings_list = eval(line_bytes)
+
     "bill OR Gates AND (vista OR XP) AND NOT mac"
 
 
