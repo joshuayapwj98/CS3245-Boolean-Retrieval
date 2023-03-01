@@ -65,7 +65,9 @@ def process_query(query, term_dictionary, postings_file, doc_id_set):
     for token in split_query:
         if token not in OPERANDS_LIST:
             stemmer.stem(token.lower())
+
         split_query_stemmed.append(token)
+
 
     while i < len(split_query):
         # check for expressions in parentheses, and evaluate them
@@ -90,35 +92,31 @@ def process_query(query, term_dictionary, postings_file, doc_id_set):
     return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
 
 def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
-    
-    intermediate_results = []
+    temp_results = []
 
-    for i in range(len(query_list)):
-        # TODO: Guard condition where AND is not followed by a term
-        if query_list[i] == "AND" and i < len(query_list) - 1:
-            # Get the left and right terms
-            operands = [query_list[i - 1], query_list[i + 1]]
+    i = 0
+    while i < len(query_list):
+        if i < len(query_list) - 1 and query_list[i + 1] == "AND":
+            AND_operands = [query_list[i], query_list[i + 2]]
             k = 1
             while (i + 1) + 2 * k < len(query_list) and query_list[(i + 1) + 2 * k] == "AND":
-                operands.append(query_list[i + 2 + 2 * k])
+                AND_operands.append(query_list[i + 2 + 2 * k])
                 k += 1
-            intermediate_results.append(process_and_operator(operands, term_dictionary, postings_file))
+            print(AND_operands)
+            temp_results.append(process_and_operator(AND_operands, term_dictionary, postings_file))
             i = i + 1 + 2 * k
-        elif query_list[i] == "OR":
-            intermediate_results.append(query_list[i])
-        i += 1
-    
-    for i in range(len(intermediate_results)):
-        # TODO: Guard condition where AND is not followed by a term
-        if isinstance(intermediate_results[i], str) and intermediate_results[i] == "OR":
-            # Get the left and right terms
-            operands = [intermediate_results[i - 1], intermediate_results[i + 1]]
-            # Perform OR operation
-            intermediate_results.append(process_or_operator(operands, term_dictionary, postings_file, doc_id_set))
-        
+
+        temp_results.append(query_list[i])
         i += 1
 
-    return intermediate_results
+    for i in range(len(temp_results)):
+        # TODO: Guard condition where AND is not followed by a term
+        if isinstance(temp_results[i], str) and temp_results[i] == "OR":
+            # Get the left and right terms
+            operands = [temp_results[i - 1], temp_results[i + 1]]
+            # Perform OR operation
+            temp_results.append(process_or_operator(operands, term_dictionary, postings_file, doc_id_set))
+    return temp_results
 
 
 # Start of AND operation functions
@@ -133,30 +131,31 @@ def process_and_operator(operands, term_dictionary, postings_file):
     not_operands = []
 
     for operand in operands:
-
         if isinstance(operand, list): # NOT operator in the form ["NOT", "word"]
-            not_operands.append(operand[1])
-        
-        elif operand not in term_dictionary:
+            if operand[1] in term_dictionary:
+                not_operands.append(operand[1])
+            continue
+
+        if operand not in term_dictionary:
+            print("Term {} not found in the dictionary.".format(operand))
             return []
-               
-        else:
-            # smaller doc frequency -> higher priority
-            doc_frequency = int(term_dictionary[operand][0])
-            pq.put(operand, 1 / doc_frequency)
 
-            while not pq.empty():
-                if len(temp_results) == 0:
-                    temp_results = get_postings_list(pq.get(), term_dictionary, postings_file)
-                else:
-                    curr = pq.get()
-                    posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-                    temp_results = intersect_merge_AND(temp_results, posting_list_curr)
+        # smaller doc frequency -> higher priority
+        doc_frequency = int(term_dictionary[operand][0])
+        pq.put(operand, 1 / doc_frequency)
 
-            while len(not_operands) > 0:
-                    curr = not_operands.pop()
-                    posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-                    temp_results = intersect_merge_NOT(temp_results, posting_list_curr)
+    while not pq.empty():
+        if len(temp_results) == 0:
+            temp_results = get_postings_list(pq.get(), term_dictionary, postings_file)
+            continue
+        curr = pq.get()
+        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+        temp_results = intersect_merge_AND(temp_results, posting_list_curr)
+
+    while len(not_operands) > 0:
+            curr = not_operands.pop()
+            posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+            temp_results = intersect_merge_NOT(temp_results, posting_list_curr)
 
     return temp_results
 
@@ -227,24 +226,33 @@ def process_or_operator(operands, term_dictionary, postings_file, doc_id_set):
     assert len(operands) > 0, "OR operator must have at least one operand."
     
     temp_results = []
-    normal_operands = []
+    operations = [] # postings_list or term
     not_operands = []
 
     for operand in operands:
-        if isinstance(operand, list):  # NOT operator in the form ["NOT", "word"]
-            not_operands.append(operand[1])
-            continue
+        if isinstance(operand, list) and operand[0] == 'NOT':
+            # NOT operator in the form ["NOT", "word"]
+            if operand[1] in term_dictionary:
+                not_operands.append(operand[1])
+        
+        # Posting list or a term
+        elif isinstance(operand, list):
+            # Add the postings list into the operations
+            operations.append(operand)
+        elif operand in term_dictionary:
+            # Find the postings list of the term and add it to operations
+            operations.append(get_postings_list(operand, term_dictionary, postings_file))
+        else:
+            # term does not exist in the term dictionary
+            print(f'{operand} does not exist.')
 
-        normal_operands.append(operand)
-
-    while len(normal_operands) > 0:
+    while len(operations) > 0:
         if len(temp_results) == 0:
-            temp_results = get_postings_list(normal_operands.pop(), term_dictionary, postings_file)
+            temp_results.append(operations.pop())
             continue
 
-        curr = normal_operands.pop()
-        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        temp_results = union_merge(temp_results, posting_list_curr)
+        curr = operations.pop()
+        temp_results = union_merge(temp_results, curr)
 
     # process NOT operands
     while len(not_operands) > 0:
@@ -337,6 +345,7 @@ def posting_list_negation(posting_list_all, posting_list1):
             p1 += 1
 
     return result
+    
 
 def intersect_merge_NOT(postings_list1, postings_list2):
     """
