@@ -6,11 +6,11 @@ import getopt
 
 # Final values
 stemmer = PorterStemmer()
-OPERANDS_LIST = ["AND", "OR", "NOT", "(", ")"]
 
 def usage():
     print("usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results")
 
+ops_dict = {'OR': 0, 'AND': 1, 'NOT': 2}
 
 doc_id_set = {}
 
@@ -41,178 +41,133 @@ def run_search(dict_file, postings_file, queries_file, results_file):
             open(f'{results_file}', "w") as results_file:
         # Read the queries file as raw string
         
-        doc_id_set = get_postings_list('all_dict', term_dictionary, postings_file)
+        doc_id_set = list(get_postings_list('all_dict', term_dictionary, postings_file))
 
         queries_text = queries_file.read()
         queries = queries_text.split('\n')
-        for query in queries:
-            query_results = process_query(query, term_dictionary, postings_file, doc_id_set)
-            string_builder = ""
-            for docId in query_results:
-                string_builder += str(docId) + " "
+        for i, query in enumerate(queries):
+            post_fix = get_postfix(query)
+            query_results = process_query(post_fix, term_dictionary, postings_file, doc_id_set)
+            string_builder = ''
+            for id in query_results:
+                if type(id) == list:
+                    string_builder = ' '.join(str(i) for i in id)
+                else:   
+                    string_builder += str(id) + " "
             string_builder.rstrip(" ")
-            results_file.write(f"{string_builder}\n")
+            results_file.write(string_builder)
+            if i < len(queries) - 1:
+                results_file.write("\n")
 
-def process_query(query, term_dictionary, postings_file, doc_id_set):
-    """
-    For each query, process the query and return the results (posting list)
-    """
-    assert len(query) <= 1024, "Query must be under 1024 characters."
+def get_postfix(infix):
+    """Convert an infix expression to RPN using the Shunting Yard algorithm."""
+    # Define operator precedence
 
-    # tokenize the query
-    split_query = split_string(query)
-    split_query_without_parenthesis = []
+    # Initialize stack and queue
+    operators = []
+    postfix = []
+    global ops_dict
+
+    # Split the infix expression into tokens
+    tokens = split_string(infix)
+
+    for token in tokens:
+        if token in ops_dict:
+            if operators:
+                # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
+                while operators[-1] in ops_dict and \
+                    ops_dict[operators[-1]] > ops_dict[token]:
+                    postfix.append(operators.pop())
+            operators.append(token)
+        elif token == '(':
+            operators.append(token)
+        elif token == ')':
+            while len(operators) > 0 and operators[-1] != "(":
+                postfix.append(operators.pop())
+            if len(operators) == 0:
+                # Incomplete parenthesis, exit the program
+                exit()
+            if operators[-1] == "(":
+                operators.pop()
+        else:
+            postfix.append(stemmer.stem(token.lower()))
     
-    i = 0
-    open_parenthesis_index = 0
-    split_query_stemmed = []
+    operators.reverse()
+    postfix.extend(operators)
+    return postfix
+    
 
-    results = []
-
-    # Perform stemming on individual terms
-    for token in split_query:
-        if token not in OPERANDS_LIST:
-            stemmer.stem(token.lower())
-
-        split_query_stemmed.append(token)
-
-
-    while i < len(split_query):
-        # check for expressions in parentheses, and evaluate them
-        if split_query_stemmed[i] == "(":
-            open_parenthesis_index = i
-            i += 1
-        elif split_query_stemmed[i] == ")":
-            expression = split_query_stemmed[open_parenthesis_index+1:i]
-            # assert "(" not in expression, "no nested parenthesis."
-            processed_expression = process_query_no_parenthesis(expression, term_dictionary, postings_file)
-            del split_query_without_parenthesis[open_parenthesis_index:i]
-            split_query_without_parenthesis.append(processed_expression[0])
-            i += 1
-        # group "NOT" and the next word together (e.g. "NOT", "apple" -> ["NOT", "apple"])
-        elif split_query_stemmed[i] == "NOT":
-            split_query_without_parenthesis.append(split_query_stemmed[i:i + 2])
-            i += 2
-        else:
-            # for all other cases, just add the word to the list
-            split_query_without_parenthesis.append(split_query_stemmed[i])
-            i += 1
-
-    result = process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
-    prev_merge_list = []
-    for i in range(len(result)):
-        prev_merge_list = union_merge(result[i], prev_merge_list)
-    return prev_merge_list
-
-def split_string(string):
+def split_string(query):
     tokens = []
-    current_token = ""
+    curr = ""
 
-    for c in string:
-        if c == '(' or c == ')':
-            if current_token:
-                tokens.append(current_token)
-                current_token = ""
-            tokens.append(c)
-        elif c == ' ':
-            if current_token:
-                tokens.append(current_token)
-                current_token = ""
+    for char in query:
+        if char == '(' or char == ')':
+            if curr:
+                tokens.append(curr)
+                curr = ""
+            tokens.append(char)
+        elif char == ' ':
+            if curr:
+                tokens.append(curr)
+                curr = ""
         else:
-            current_token += c
+            curr += char
 
-    if current_token:
-        tokens.append(current_token)
+    if curr:
+        tokens.append(curr)
 
     return tokens
 
+def process_query(tokens, term_dictionary, postings_file, doc_id_set):
+    stack = []
+    for token in tokens:
+        if token not in ops_dict:
+            # Regular string term
+            stack.append(token)
+        else:
+            left_operand = posting_list_type_check(stack.pop(), term_dictionary, postings_file)
+            operands = []
+            intermediate_result = []
+            if token == 'NOT':
+                intermediate_result = posting_list_negation(doc_id_set, left_operand)
+            elif token == 'AND':
+                right_operand = posting_list_type_check(stack.pop(), term_dictionary, postings_file)
+                operands = [left_operand, right_operand]
+                intermediate_result = process_and_operator(operands)
+            elif token == 'OR':
+                right_operand = posting_list_type_check(stack.pop(), term_dictionary, postings_file)
+                operands = [left_operand, right_operand]
+                intermediate_result = process_or_operator(operands)
+            stack.append(intermediate_result)
+    if len(stack) > 0:
+        return stack.pop()
 
-def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
-    intermediate_result = []
-
-    # Process all the AND operation
-    i = 0
-    while i < len(query_list):
-        if i < len(query_list) - 1 and query_list[i + 1] == "AND":
-            AND_operands = [query_list[i], query_list[i + 2]]
-            k = 1
-            while (i + 1) + 2 * k < len(query_list) and query_list[(i + 1) + 2 * k] == "AND":
-                AND_operands.append(query_list[i + 2 + 2 * k])
-                k += 1
-            combined_postings_list = process_and_operator(AND_operands, term_dictionary, postings_file)
-            intermediate_result.append(combined_postings_list)
-            i = i + 1 + 2 * k
-            continue
-
-        intermediate_result.append(query_list[i])
-        i += 1
-    
-    if 'OR' not in query_list:
-        return intermediate_result
-    
-    else:
-        intermediate_result = []
-        for i in range(len(query_list)):
-            # TODO: Guard condition where AND is not followed by a term
-            if isinstance(query_list[i], str) and query_list[i] == "OR":
-                # Get the left and right terms
-                operands = [query_list[i - 1], query_list[i + 1]]
-                # Perform OR operation
-                result = process_or_operator(operands, term_dictionary, postings_file, doc_id_set)
-                intermediate_result.append(result)
-                i += 1
-
-        return intermediate_result
-
+def posting_list_type_check(operand, term_dictionary, postings_file):
+    if type(operand) != list:
+        operand = get_postings_list(operand, term_dictionary, postings_file)
+    return operand
 
 # Start of AND operation functions
-def process_and_operator(operands, term_dictionary, postings_file):
+def process_and_operator(operands):
     """
     Process AND operators and operands.
 
     If there is a NOT operator, then the NOT operator will be the last operand.
     """
-    pq = []
-    temp_results = []
-    not_operands = []
+    priority_queue = []
 
     for operand in operands:
-        temp_postings_list = []
-        
-        if isinstance(operand, list) and len(operand) > 0 and operand[0] == 'NOT': # NOT operator in the form ["NOT", "word"]
-            if operand[1] in term_dictionary:
-                not_operands.append(get_postings_list(operand[1], term_dictionary, postings_file))
-        # Posting list or a term
-        elif isinstance(operand, list):
-            # Add the postings list into the operations
-            temp_postings_list = operand
-        
-        elif operand in term_dictionary:
-            # Find the postings list of the term and add it to operations
-            temp_postings_list = get_postings_list(operand, term_dictionary, postings_file)
-
-        else:
-            # term does not exist in the term dictionary
-            print(f'{operand} does not exist.')
-            # Return empty list since AND
-            return []
-
-        # smaller doc frequency -> higher priority
-        doc_frequency = len(temp_postings_list)
-        pq.append((temp_postings_list, doc_frequency))
+        doc_frequency = len(operand)
+        priority_queue.append((operand, doc_frequency))
     
-    pq.sort(key=lambda x: x[1])
+    priority_queue.sort(key=lambda x: x[1])
 
-    if pq:
-        prev_merged_list = pq.pop(0)[0]
-        while pq:
-            curr = pq.pop(0)[0]
+    if priority_queue:
+        prev_merged_list = priority_queue.pop(0)[0]
+        while priority_queue:
+            curr = priority_queue.pop(0)[0]
             prev_merged_list = intersect_merge_AND(prev_merged_list, curr)
-
-
-    while len(not_operands) > 0:
-            curr = not_operands.pop()
-            prev_merged_list = intersect_merge_NOT(prev_merged_list, curr)
 
     return prev_merged_list
 
@@ -223,10 +178,8 @@ def intersect_merge_AND(postings_list1, postings_list2):
     """
     merged_postings_list = []
     p1 = p2 = 0
-    if len(postings_list1) == 0:
-        merged_postings_list = flatten(postings_list2)
-    elif len(postings_list2) == 0:
-        merged_postings_list = flatten(postings_list1)
+    if len(postings_list1) == 0 or len(postings_list2) == 0:
+        return []
     else:
         while p1 < len(postings_list1) and p2 < len(postings_list2):
             list1_value, list1_skip_ptr = None, None
@@ -284,53 +237,24 @@ def intersect_merge_AND(postings_list1, postings_list2):
 # End of AND operation functions
 
 # Start of OR operation functions
-def process_or_operator(operands, term_dictionary, postings_file, doc_id_set):
+def process_or_operator(operands):
     """
         Process OR operators.
 
         If there is a NOT operator, then the NOT operator will be the last operand.
         """
-    assert len(operands) > 0, "OR operator must have at least one operand."
-    
-    temp_results = []
-    operations = [] # postings_list or term
-    not_operands = []
-
-    for operand in operands:
-        if isinstance(operand, list) and len(operand) > 0 and operand[0] == 'NOT':
-            # NOT operator in the form ["NOT", "word"]
-            if operand[1] in term_dictionary:
-                not_operands.append(operand[1])
-        
-        # Posting list or a term
-        elif isinstance(operand, list):
-            # Add the postings list into the operations
-            operations.append(operand)
-        elif operand in term_dictionary:
-            # Find the postings list of the term and add it to operations
-            operations.append(get_postings_list(operand, term_dictionary, postings_file))
-        else:
-            # term does not exist in the term dictionary
-            print(f'{operand} does not exist.')
-
+    results = []
     prev_postings_list = []
-    while len(operations) > 0:
+    while len(operands) > 0:
         if len(prev_postings_list) == 0:
-            prev_postings_list = operations.pop()
+            prev_postings_list = operands.pop()
             continue
 
-        curr = operations.pop()
-        merged_postings_list = union_merge(prev_postings_list, curr)
-        prev_postings_list = merged_postings_list
-        temp_results.append(merged_postings_list)
+        curr = operands.pop()
+        prev_postings_list = union_merge(prev_postings_list, curr)
+        results.append(prev_postings_list)
 
-    # process NOT operands
-    while len(not_operands) > 0:
-        curr = not_operands.pop()
-        negated_posting_list = posting_list_negation(list(doc_id_set), curr)
-        temp_results = union_merge(temp_results, negated_posting_list)
-    
-    return [item for sublist in temp_results for item in sublist]
+    return results
 
 def union_merge(postings_list1, postings_list2):
     """
@@ -448,6 +372,9 @@ def get_postings_list(term, term_dictionary, postings_file, temp_dict = None):
     if temp_dict and term[0] == "*":
         return temp_dict.get(term[1:])
 
+    if term not in term_dictionary:
+        return []
+    
     file_ptr_pos = term_dictionary.get(term)[1]
 
     # Move the file pointer to the start of the array
