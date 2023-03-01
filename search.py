@@ -45,7 +45,11 @@ def run_search(dict_file, postings_file, queries_file, results_file):
         queries = queries_text.split('\n')
         for query in queries:
             query_results = process_query(query, term_dictionary, postings_file, doc_id_set)
-            results_file.write(f'{query_results}\n')
+            string_builder = ""
+            for docId in query_results:
+                string_builder += str(docId) + " "
+            string_builder.rstrip(" ")
+            results_file.write(f"{string_builder}\n")
 
 def process_query(query, term_dictionary, postings_file, doc_id_set):
     """
@@ -92,7 +96,7 @@ def process_query(query, term_dictionary, postings_file, doc_id_set):
     return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
 
 def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
-    temp_results = []
+    intermediate_result = []
 
     i = 0
     while i < len(query_list):
@@ -102,21 +106,26 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
             while (i + 1) + 2 * k < len(query_list) and query_list[(i + 1) + 2 * k] == "AND":
                 AND_operands.append(query_list[i + 2 + 2 * k])
                 k += 1
-            print(AND_operands)
-            temp_results.append(process_and_operator(AND_operands, term_dictionary, postings_file))
+            combined_postings_list = process_and_operator(AND_operands, term_dictionary, postings_file)
+            intermediate_result.append(combined_postings_list)
             i = i + 1 + 2 * k
+            continue
 
-        temp_results.append(query_list[i])
+        intermediate_result.append(query_list[i])
         i += 1
 
-    for i in range(len(temp_results)):
+    final_result = []
+    for i in range(len(intermediate_result)):
         # TODO: Guard condition where AND is not followed by a term
-        if isinstance(temp_results[i], str) and temp_results[i] == "OR":
+        if isinstance(intermediate_result[i], str) and intermediate_result[i] == "OR":
             # Get the left and right terms
-            operands = [temp_results[i - 1], temp_results[i + 1]]
+            operands = [intermediate_result[i - 1], intermediate_result[i + 1]]
             # Perform OR operation
-            temp_results.append(process_or_operator(operands, term_dictionary, postings_file, doc_id_set))
-    return temp_results
+            result = process_or_operator(operands, term_dictionary, postings_file, doc_id_set)
+            final_result.append(result)
+
+    final_result = [item for sublist in final_result for item in sublist]
+    return final_result
 
 
 # Start of AND operation functions
@@ -246,22 +255,24 @@ def process_or_operator(operands, term_dictionary, postings_file, doc_id_set):
             # term does not exist in the term dictionary
             print(f'{operand} does not exist.')
 
+    prev_postings_list = []
     while len(operations) > 0:
-        if len(temp_results) == 0:
-            temp_results.append(operations.pop())
+        if len(prev_postings_list) == 0:
+            prev_postings_list = operations.pop()
             continue
 
         curr = operations.pop()
-        temp_results = union_merge(temp_results, curr)
+        merged_postings_list = union_merge(prev_postings_list, curr)
+        prev_postings_list = merged_postings_list
+        temp_results.append(merged_postings_list)
 
     # process NOT operands
     while len(not_operands) > 0:
         curr = not_operands.pop()
-        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        negated_posting_list = posting_list_negation(list(doc_id_set), posting_list_curr)
+        negated_posting_list = posting_list_negation(list(doc_id_set), curr)
         temp_results = union_merge(temp_results, negated_posting_list)
-
-    return temp_results
+    
+    return [item for sublist in temp_results for item in sublist]
 
 def union_merge(postings_list1, postings_list2):
     """

@@ -1,1 +1,2 @@
-pepsi AND coke OR charlie
+pepsi AND coke OR pepsi AND coke
+challeng AND (chamber AND NOT champion) NOT chancellor
