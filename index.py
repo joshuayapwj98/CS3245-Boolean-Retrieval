@@ -22,18 +22,14 @@ import os
 import shutil
 import sys
 import getopt
-import time
 
-import linecache
 import math
 
 import nltk
-from nltk.corpus import PlaintextCorpusReader
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.stem.porter import PorterStemmer
 
 import json
-import pickle
 
 # Final values
 stemmer = PorterStemmer()
@@ -52,7 +48,12 @@ def build_index(in_dir, out_dict, out_postings):
     build index from documents stored in the input directory,
     then output the dictionary file and postings file
     """
-    print('indexing...')
+
+    global BLOCK_SIZE
+    if in_dir == './sample_training_folder':
+        BLOCK_SIZE = 1
+
+    print('start of indexing')
 
     if os.path.exists(INTERMEDIATE_BLOCK):
         shutil.rmtree(INTERMEDIATE_BLOCK)
@@ -60,40 +61,35 @@ def build_index(in_dir, out_dict, out_postings):
 
     index = {}
     global block_no
+    doc_id_set = set()
 
-    corpus = PlaintextCorpusReader(in_dir, '.*')
-    file_ids = corpus.fileids()
-
-    st = time.time()
+    files = os.listdir(in_dir)
+    
+    print('Creating intermediate blocks...')
     # Iterate through all the files and construct intermediate blocks
-    for i, doc_id in enumerate(file_ids):
-        doc = corpus.raw(doc_id)
-        index_file(doc, index, int(os.path.splitext(doc_id)[0]))
-        if i % BLOCK_SIZE == BLOCK_SIZE - 1 or i == len(file_ids) - 1:
+    for i, file_name in enumerate(files):
+        document = ''
+        with open(f'{in_dir}/{file_name}', 'r') as file:
+            document = file.read()
+        doc_id = int(os.path.splitext(file_name)[0])
+        doc_id_set.add(doc_id)
+        index_file(document, index, doc_id)
+        if i % BLOCK_SIZE == BLOCK_SIZE - 1 or i == len(files) - 1:
             # Exceeded block size
             write_block_to_disk(index, block_no)
             index = {}
-            if i != len(file_ids) - 1:
+            if i != len(files) - 1:
                 block_no += 1
-    et = time.time()
-    elapsed_time = et - st
-    print('Time taken to index files:', round(elapsed_time, 3), 'seconds')
-    
+   
+    print('Merging intermediate blocks...')
     # Merge intermediate blocks into the final block
-    st = time.time()
     final_block_no = merge_blocks_on_disk(0, block_no)
-    et = time.time()
-    elapsed_time = et - st
-    print('Time taken to merge:', round(elapsed_time, 3), 'seconds')
     
+    print('Writing to output directories...')
     # Write final block into dictionary and postings file respectively
-    st = time.time()
-    write_dictionary_postings_to_disk(final_block_no, out_dict, out_postings)
-    et = time.time()
-    elapsed_time = et - st
-    print('Time taken to write dictionary and postings file:', round(elapsed_time, 3), 'seconds')
+    write_dictionary_postings_to_disk(final_block_no, out_dict, out_postings, doc_id_set)
 
-    print('End of indexing...')
+    print('End of indexing')
 
 def index_file(doc, index, doc_id):
     # Get sentences in each document
@@ -177,7 +173,7 @@ def merge(left, right):
     # return the index of the new merged block
     return block_no
     
-def write_dictionary_postings_to_disk(number, out_dict, out_postings):
+def write_dictionary_postings_to_disk(number, out_dict, out_postings, doc_id_set):
     merged_dictionary = {}
 
     block_file_dir = INTERMEDIATE_BLOCK + f'/{number}'
@@ -200,6 +196,8 @@ def write_dictionary_postings_to_disk(number, out_dict, out_postings):
 
             # Add the file_ptr_pos reference for each term for quick access
             dictionary_file.write(term + " " + str(len(new_postings_list)) + " " + str(file_ptr_pos) + "\n")
+        
+        dictionary_file.write(str(doc_id_set))
 
 def get_skip_pointers(postings_list):
     postings_list_builder = []
