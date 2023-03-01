@@ -42,10 +42,10 @@ def run_search(dict_file, postings_file, queries_file, results_file):
         queries_text = queries_file.read()
         queries = queries_text.split('\n')
         for query in queries:
-            query_results = process_query(query, term_dictionary, postings_file)
+            query_results = process_query(query, term_dictionary, postings_file, doc_id_set)
             results_file.write(f'{query_results}\n')
 
-def process_query(query, term_dictionary, postings_file):
+def process_query(query, term_dictionary, postings_file, doc_id_set):
     """
     For each query, process the query and return the results (posting list)
     """
@@ -91,9 +91,9 @@ def process_query(query, term_dictionary, postings_file):
         split_query_without_parenthesis.append(split_query_stemmed[i])
         i += 1
 
-    return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
+    return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file, doc_id_set)
 
-def process_or_operator(operands, term_dictionary, postings_file):
+def process_or_operator(operands, term_dictionary, postings_file, doc_id_set):
     """
         Process OR operators.
 
@@ -121,19 +121,58 @@ def process_or_operator(operands, term_dictionary, postings_file):
         posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
         temp_results = union_merge(temp_results, posting_list_curr)
 
-    # process NOT operators
-    # A or not B or not C <=> not (not A and B and C)
-    # if len(not_operands) > 0:
+    # process NOT operands
+    while len(not_operands) > 0:
+        curr = not_operands.pop()
+        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+        negated_posting_list = posting_list_negation(list(doc_id_set), posting_list_curr)
+        print(list(doc_id_set))
+        print(negated_posting_list)
+        temp_results = union_merge(temp_results, negated_posting_list)
 
     return temp_results
 
+def posting_list_negation(posting_list_all, posting_list1):
+    """
+    Get the postings list for the NOT operator.
+    """
+    result = []
+    p1 = p_all = 0
+
+    while p_all < len(posting_list_all):
+        if p1 >= len(posting_list1):
+            result.extend(posting_list_all[p_all:])
+            break
+
+        list1_value = None
+
+        if isinstance(posting_list1[p1], list):
+            list1_value, _ = posting_list1[p1]
+        else:
+            list1_value = posting_list1[p1]
+
+        if posting_list_all[p_all] == list1_value:
+            p_all += 1
+            p1 += 1
+
+        elif posting_list_all[p_all] < list1_value:
+            result.append(posting_list_all[p_all])
+            p_all += 1
+        else: # posting_list_all[p_all] > list1_value
+            p1 += 1
+
+    return result
+
 def union_merge(postings_list1, postings_list2):
+    """
+    Merge two postings lists using the union merge algorithm.
+    """
     merged_postings_list = []
     p1 = p2 = 0
 
     while p1 < len(postings_list1) and p2 < len(postings_list2):
-        list1_value, list1_skip_ptr = None, None
-        list2_value, list2_skip_ptr = None, None
+        list1_value = None
+        list2_value = None
 
         if isinstance(postings_list1[p1], list):
             list1_value, _ = postings_list1[p1]
@@ -155,6 +194,12 @@ def union_merge(postings_list1, postings_list2):
         else:
             merged_postings_list.append(list2_value)
             p2 += 1
+
+    if p1 < len(postings_list1) and p2 >= len(postings_list2):
+        merged_postings_list.extend(postings_list1[p1:])
+
+    if p2 < len(postings_list2) and p1 >= len(postings_list1):
+        merged_postings_list.extend(postings_list2[p2:])
 
     return merged_postings_list
 
@@ -284,7 +329,7 @@ def intersect_merge_NOT(postings_list1, postings_list2):
 
 
 
-def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
+def process_query_no_parenthesis(query_list, term_dictionary, postings_file, doc_id_set):
     temp_results = []
 
     i = 0
@@ -305,7 +350,7 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
 
     OR_operands = [i for i in temp_results if i != "OR"]
     if len(OR_operands) > 0:
-        temp_results = process_or_operator(OR_operands, term_dictionary, postings_file)
+        temp_results = process_or_operator(OR_operands, term_dictionary, postings_file, doc_id_set)
     return temp_results
 
 
@@ -326,8 +371,7 @@ def get_postings_list(term, term_dictionary, postings_file, temp_dict = None):
 
     # Convert the string back to a list
     postings_list = eval(line_bytes)
-    print(term)
-    print(postings_list)
+
     return postings_list
 
 
