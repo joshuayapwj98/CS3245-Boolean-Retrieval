@@ -202,7 +202,7 @@ def write_dictionary_postings_to_disk(number, out_dict, out_postings, doc_id_set
 def get_skip_pointers(postings_list):
     postings_list_builder = []
     if len(postings_list) == 1:
-        postings_list_builder.append(postings_list[0])
+        postings_list_builder.append([postings_list[0]])
     else:
         # Calculate the number of skip pointers by perform sqrt() of the postings list length
         skip_pointer_counter = math.isqrt(len(postings_list))
@@ -210,18 +210,17 @@ def get_skip_pointers(postings_list):
         skip_distance = math.floor(len(postings_list) / skip_pointer_counter)
         # Iterate through each documentId in postings_list
         for i in range(len(postings_list)):
+            # By default, an element in the postings_list will be a element
+            postings_list_builder.append([postings_list[i]])
             # Check for the neccessary conditions for a skip pointer
             if i % skip_distance == 0 and i + skip_distance < len(postings_list):
                 # Append the current documentId (value of i) to the previous idx element
-                postings_list_builder.append([postings_list[i], i + skip_distance])
+                postings_list_builder[i].append(i + skip_distance)
                 skip_pointer_counter -= 1
             elif i % skip_distance == 0 and i + skip_distance >= len(postings_list):
                 # Append the current documentId (value of i) to the last idx of postings_list
-                postings_list_builder.append([postings_list[i], len(postings_list) - 1])
+                postings_list_builder[i].append(len(postings_list) - 1)
                 skip_pointer_counter -= 1
-            else:
-                # By default, an element in the postings_list will be a element
-                postings_list_builder.append(postings_list[i])
         
         if skip_pointer_counter > 0:
             print(f"Error. There is a total of {skip_pointer_counter} not being used...")

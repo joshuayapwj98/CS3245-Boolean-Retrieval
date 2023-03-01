@@ -55,37 +55,37 @@ def process_query(query, term_dictionary, postings_file):
     split_query = query.split()
 
     # perform stemming
-    split_query_stemmed = [stemmer.stem(token.lower())
-                           for token in split_query if token not in OPERANDS_LIST]
+    split_query_stemmed = []
+
+    for token in split_query:
+        if token not in OPERANDS_LIST:
+            stemmer.stem(token.lower())
+        split_query_stemmed.append(token)
 
     split_query_without_parenthesis = []
     i = 0
     open_parenthesis_index = 0
-    while i < len(split_query_stemmed):
+    while i < len(split_query):
         # check for expressions in parentheses, and evaluate them
         if split_query_stemmed[i] == "(":
             open_parenthesis_index = i
             i += 1
-            continue
-        if split_query_stemmed[i] == ")":
+        elif split_query_stemmed[i] == ")":
             expression = split_query_stemmed[open_parenthesis_index:i + 1]
             assert "(" not in expression, "no nested parenthesis."
             processed_expression = process_query_no_parenthesis(expression, term_dictionary, postings_file)
             split_query_without_parenthesis.append(processed_expression)
             i += 1
-            continue
-
         # group "NOT" and the next word together (e.g. "NOT", "apple" -> ["NOT", "apple"])
-        if split_query_stemmed[i] == "NOT":
+        elif split_query_stemmed[i] == "NOT":
             split_query_without_parenthesis.append(split_query_stemmed[i:i + 2])
             i += 2
-            continue
+        else:
+            # for all other cases, just add the word to the list
+            split_query_without_parenthesis.append(split_query_stemmed[i])
+            i += 1
 
-        # for all other cases, just add the word to the list
-        split_query_without_parenthesis.append(split_query_stemmed[i])
-        i += 1
-
-        return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
+    return process_query_no_parenthesis(split_query_without_parenthesis, term_dictionary, postings_file)
 
 def process_or_operator(operands, term_dictionary, postings_file):
     """
@@ -95,45 +95,7 @@ def process_or_operator(operands, term_dictionary, postings_file):
         """
     assert len(operands) > 0, "OR operator must have at least one operand."
 
-    temp_results = get_postings_list(operands[0])
-
-    # TODO : OR merging for operands with NOT operator
-
-    index = 1
-    while index < len(operands):
-        curr_operand = operands[index]
-
-
-    pq = PriorityQueue(len(args))
-    temp_results = []
-    not_operands = []
-
-    for operand in operands:
-        if isinstance(operand, list):  # NOT operator in the form ["NOT", "word"]
-            not_operands.append(operand[1])
-            continue
-
-        # smaller doc frequency -> higher priority
-        doc_frequency = int(term_dictionary[operand][0])
-        pq.put(operand, 1 / doc_frequency)
-
-    while not pq.empty():
-        if len(temp_results) == 0:
-            temp_results = get_postings_list(pq.get(), term_dictionary, postings_file)
-            continue
-        curr = pq.get()
-        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        temp_results = intersect_merge(temp_results, posting_list_curr)
-
-    while len(not_operands) > 0:
-        curr = not_operands.pop()
-        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
-        temp_results = intersect_merge_NOT(temp_results, posting_list_curr)
-
-    return temp_results
-
-
-    return temp_results
+    return
 
 def union_merge(postings_list1, postings_list2):
     merged_postings_list = []
@@ -183,22 +145,23 @@ def intersect_merge(postings_list1, postings_list2):
     """
     merged_postings_list = []
     p1 = p2 = 0
-
+    list1_value, list1_skip_ptr = None, None
+    list2_value, list2_skip_ptr = None, None
+    
     while p1 < len(postings_list1) and p2 < len(postings_list2):
-        list1_value, list1_skip_ptr = None, None
-        list2_value, list2_skip_ptr = None, None
-
-        if isinstance(postings_list1[p1], list):
+        # Check if the current element in postings_list1 contains a skip pointer
+        if len(postings_list1[p1]) > 1:
             list1_value, list1_skip_ptr = postings_list1[p1]
         else:
-            list1_value, list1_skip_ptr = postings_list1[p1], None
+            list1_value = postings_list1[p1][0]
 
-        if isinstance(postings_list2[p2], list):
+        # Check if the current element in postings_list2 contains a skip pointer
+        if len(postings_list2[p2]) > 1:
             list2_value, list2_skip_ptr = postings_list2[p2]
         else:
-            list2_value, list2_skip_ptr = postings_list2[p2], None
+            list2_value = postings_list2[p2][0]
 
-        # Case 1: values match
+        # Case 1: Both values in postings match 
         if list1_value == list2_value:
             merged_postings_list.append(list1_value)
             p1 += 1
@@ -206,17 +169,28 @@ def intersect_merge(postings_list1, postings_list2):
 
         # Case 2: list1_value < list2_value
         elif list1_value < list2_value:
-            if list1_skip_ptr and postings_list1[list1_skip_ptr] <= list2_value:
-                while isinstance(postings_list1[p1], list) and postings_list1[postings_list1[p1][1]][0] <= list2_value:
-                    p1 = postings_list1[postings_list1[p1][1]]
+            if list1_skip_ptr != None and (postings_list1[list1_skip_ptr][0] <= list2_value):
+                # It is safe to jump to the skip pointer position of postings_list1
+                while len(postings_list1[list1_skip_ptr]) > 1 and postings_list1[list1_skip_ptr][0] <= list2_value:
+                    p1 = list1_skip_ptr
+                    next_element = postings_list1[list1_skip_ptr]
+                    if len(next_element) > 1:
+                        list1_skip_ptr = next_element[1]
+                    else: 
+                        list1_skip_ptr = None
             else:
                 p1 += 1
 
         # Case 3: list1_value >= list2_value
-        elif list2_skip_ptr and postings_list2[list2_skip_ptr] <= list1_value:
-            if list2_skip_ptr and postings_list1[list1_skip_ptr] <= list1_value:
-                while isinstance(postings_list2[p2], list) and postings_list2[postings_list2[p2][0]] <= list1_value:
-                    p2 = postings_list2[postings_list2[p2][1]]
+        else:
+            if list2_skip_ptr != None and (postings_list2[list2_skip_ptr][0] <= list1_value):
+                while len(postings_list2[list2_skip_ptr]) > 1 and postings_list2[postings_list2][0] <= list1_value:
+                    p2 = list2_skip_ptr
+                    next_element = postings_list2[list2_skip_ptr]
+                    if len(next_element) > 1:
+                        list2_skip_ptr = next_element[1]
+                    else: 
+                        list2_skip_ptr = None
             else:
                 p2 += 1
 
@@ -274,8 +248,7 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
     i = 0
     while i < len(query_list):
         if query_list[i] == "AND":
-            AND_operands = query_list[i - 1]
-            AND_operands.append(query_list[i + 1])
+            AND_operands = [query_list[i - 1], query_list[i + 1]]
             k = 1
             while i + 2 * k < len(query_list) and query_list[i + 2 * k] == "AND":
                 AND_operands.append(query_list[i + k])
@@ -288,8 +261,8 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
         i += 1
 
     OR_operands = [i for i in temp_results if i != "OR"]
-    if len(OR_operands) > 0:
-        temp_results = process_or_operator(OR_operands, term_dictionary, postings_file)
+    # if len(OR_operands) > 0:
+    #     temp_results = process_or_operator(OR_operands, term_dictionary, postings_file)
     return temp_results
 
 
@@ -335,31 +308,8 @@ for o, a in opts:
     else:
         assert False, "unhandled option"
 
-# if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
-#     usage()
-#     sys.exit(2)
+if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
+    usage()
+    sys.exit(2)
 
-# run_search(dictionary_file, postings_file, file_of_queries, file_of_output)
-
-
-with open('dictionary.txt', 'r') as dictionary_file, open('postings.txt', 'r') as postings_file:
-
-    term_dictionary = {}
-
-    # Read the dictionary file as raw string
-    dictionary_text = dictionary_file.read()
-    # Split each line into an array
-    lines = dictionary_text.split('\n')
-    # Retrieve the set of document Id
-    doc_id_set = eval(lines[-1])
-
-    # Iterate through each line of the dictionary (except the last line)
-    for i in range(len(lines) - 1):
-        line = lines[i]
-        term, doc_frequency, file_ptr_pos = line.split()
-        term_dictionary[term] = (doc_frequency, file_ptr_pos)
-
-    operands = ['-0.6', '-0.6']
-
-    print(process_and_operator(operands, term_dictionary, postings_file))
-
+run_search(dictionary_file, postings_file, file_of_queries, file_of_output)
