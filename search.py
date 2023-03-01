@@ -7,7 +7,7 @@ from queue import PriorityQueue
 
 # Final values
 stemmer = PorterStemmer()
-operands = ["AND", "OR", "NOT", "(", ")"]
+OPERANDS_LIST = ["AND", "OR", "NOT", "(", ")"]
 
 def usage():
     print("usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results")
@@ -46,7 +46,7 @@ def process_query(query, term_dictionary, postings_file):
 
     # perform stemming
     split_query_stemmed = [stemmer.stem(token.lower())
-                           for token in split_query if token not in operands]
+                           for token in split_query if token not in OPERANDS_LIST]
 
     split_query_without_parenthesis = []
     i = 0
@@ -84,9 +84,17 @@ def process_or_operator(operands, term_dictionary, postings_file):
 
     index = 1;
     while index < len(operands):
-        print("")
+        curr_operand = operands[index]
+
 
     return temp_results
+
+def union_merge(postings_list1, postings_list2):
+    merged_postings_list = []
+    p1 = p2 = 0
+
+
+    return merged_postings_list
 
 
 def process_and_operator(operands, term_dictionary, postings_file):
@@ -95,16 +103,107 @@ def process_and_operator(operands, term_dictionary, postings_file):
 
     for operand in operands:
         if isinstance(operand, list):
-            pq.put((0, operand))
+            pq.put(0, operand)
             continue
 
-        # TODO: get the doc_frequency from the dictionary
         doc_frequency = term_dictionary[operand]
         pq.put(-term_dictionary[operand], operand)
 
     while not pq.empty():
         curr = pq.get()
-        # TODO: get postings list from postings file and merge
+        posting_list_curr = get_postings_list(curr, term_dictionary, postings_file)
+        temp_results = intersect_merge(temp_results, posting_list_curr)
+
+    return temp_results
+
+def intersect_merge(postings_list1, postings_list2):
+    merged_postings_list = []
+    p1 = p2 = 0
+
+    while p1 < len(postings_list1) and p2 < len(postings_list1):
+        list1_value, list1_skip_ptr = None, None
+        list2_value, list2_skip_ptr = None, None
+
+        if isinstance(postings_list1[p1], list):
+            list1_value, list1_skip_ptr = postings_list1[p1]
+        else:
+            list1_value, list1_skip_ptr = postings_list1[p1], None
+
+        if isinstance(postings_list2[p2], list):
+            list2_value, list2_skip_ptr = postings_list2[p2]
+        else:
+            list2_value, list2_skip_ptr = postings_list2[p2], None
+
+        # Case 1: values match
+        if list1_value == list2_value:
+            merged_postings_list.append(list1_value)
+            p1 += 1
+            p2 += 1
+
+        # Case 2: list1_value < list2_value
+        elif list1_value < list2_value:
+            if list1_skip_ptr and postings_list1[list1_skip_ptr] <= list2_value:
+                while isinstance(postings_list1[p1], list) and postings_list1[postings_list1[p1][1]][0] <= list2_value:
+                    p1 = postings_list1[postings_list1[p1][1]]
+            else:
+                p1 += 1
+
+        # Case 3: list1_value >= list2_value
+        elif list2_skip_ptr and postings_list2[list2_skip_ptr] <= list1_value:
+            if list2_skip_ptr and postings_list1[list1_skip_ptr] <= list1_value:
+                while isinstance(postings_list2[p2], list) and postings_list2[postings_list2[p2][0]] <= list1_value:
+                    p2 = postings_list2[postings_list2[p2][1]]
+            else:
+                p2 += 1
+
+    return merged_postings_list
+
+# def intersect_merge_NOT(postings_list1, postings_list2):
+#     merged_postings_list = []
+#     p1 = p2 = 0
+#
+#     while p1 < len(postings_list1) and p2 < len(postings_list1):
+#         list1_value, list1_skip_ptr = None, None
+#         list2_value, list2_skip_ptr = None, None
+#
+#         if isinstance(postings_list1[p1], list):
+#             list1_value, list1_skip_ptr = postings_list1[p1]
+#         else:
+#             list1_value, list1_skip_ptr = postings_list1[p1], None
+#
+#         if isinstance(postings_list2[p2], list):
+#             list2_value, list2_skip_ptr = postings_list2[p2]
+#         else:
+#             list2_value, list2_skip_ptr = postings_list2[p2], None
+#
+#         # Case 1: values match
+#         if list1_value == list2_value:
+#             merged_postings_list.append(list1_value)
+#             p1 += 1
+#             p2 += 1
+#
+#         # Case 2: list1_value < list2_value
+#         elif list1_value < list2_value:
+#             if list1_skip_ptr and postings_list1[list1_skip_ptr] <= list2_value:
+#                 while isinstance(postings_list1[p1], list) and postings_list1[postings_list1[p1][1]][0] <= list2_value:
+#                     p1 = postings_list1[postings_list1[p1][1]]
+#             else:
+#                 p1 += 1
+#
+#         # Case 3: list1_value >= list2_value
+#         elif list2_skip_ptr and postings_list2[list2_skip_ptr] <= list1_value:
+#             if list2_skip_ptr and postings_list1[list1_skip_ptr] <= list1_value:
+#                 while isinstance(postings_list2[p2], list) and postings_list2[postings_list2[p2][0]] <= list1_value:
+#                     p2 = postings_list2[postings_list2[p2][1]]
+#             else:
+#                 p2 += 1
+#
+#     return merged_postings_list
+
+# class LinkedListNode:
+#
+#     toString = this.node + nextnode.tostring()
+
 
 
 def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
@@ -130,8 +229,8 @@ def process_query_no_parenthesis(query_list, term_dictionary, postings_file):
     return process_or_operator(OR_operands, term_dictionary, postings_file)
 
 
-def get_postings_list(term, term_dictionary, postings_file, temp_dict):
-    if term[0] == "*":
+def get_postings_list(term, term_dictionary, postings_file, temp_dict = None):
+    if temp_dict and term[0] == "*":
         return temp_dict.get(term[1:])
 
     file_ptr_pos = term_dictionary.get(term)[1]
@@ -146,9 +245,9 @@ def get_postings_list(term, term_dictionary, postings_file, temp_dict):
     line_bytes = line_bytes.rstrip('\n')
 
     # Convert the string back to a list
-    new_postings_list = eval(line_bytes)
+    postings_list = eval(line_bytes)
 
-    "bill OR Gates AND (vista OR XP) AND NOT mac"
+    return postings_list
 
 
 dictionary_file = postings_file = file_of_queries = output_file_of_results = None
