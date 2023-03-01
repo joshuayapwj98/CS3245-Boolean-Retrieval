@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 
+
 """
 Different commands depending on environment
 Debug phase:
@@ -9,8 +10,8 @@ python3 index.py -i ./sample_training_folder -d dictionary.txt -p postings.txt
 Build phase:
 Note: need to find directory to where the reuters data set is installed on your local machine
 
-Jun Wei (MacOS):
-python3 index.py -i /Users/tanju/nltk_data/corpora/reuters/training -d dictionary.txt -p postings.txt
+Jun Wei:
+
 
 Joshua (MacOS):
 python3 index.py -i /Users/joshuayap/nltk_data/corpora/reuters/training -d dictionary.txt -p postings.txt
@@ -21,6 +22,7 @@ import os
 import shutil
 import sys
 import getopt
+import time
 
 import linecache
 import math
@@ -45,7 +47,6 @@ block_no = 0
 def usage():
     print("usage: " + sys.argv[0] + " -i directory-of-documents -d dictionary-file -p postings-file")
 
-
 def build_index(in_dir, out_dict, out_postings):
     """
     build index from documents stored in the input directory,
@@ -62,6 +63,9 @@ def build_index(in_dir, out_dict, out_postings):
 
     corpus = PlaintextCorpusReader(in_dir, '.*')
     file_ids = corpus.fileids()
+
+    st = time.time()
+    # Iterate through all the files and construct intermediate blocks
     for i, doc_id in enumerate(file_ids):
         doc = corpus.raw(doc_id)
         index_file(doc, index, int(os.path.splitext(doc_id)[0]))
@@ -71,40 +75,63 @@ def build_index(in_dir, out_dict, out_postings):
             index = {}
             if i != len(file_ids) - 1:
                 block_no += 1
-
+    et = time.time()
+    elapsed_time = et - st
+    print('Time taken to index files:', elapsed_time, 'seconds')
+    
+    # Merge intermediate blocks into the final block
+    st = time.time()
     final_block_no = merge_blocks_on_disk(0, block_no)
+    et = time.time()
+    elapsed_time = et - st
+    print('Time taken to merge:', elapsed_time, 'seconds')
+    
+    # Write final block into dictionary and postings file respectively
+    st = time.time()
     write_dictionary_postings_to_disk(final_block_no, out_dict, out_postings)
+    et = time.time()
+    elapsed_time = et - st
+    print('Time taken to write dictionary and postings file:', elapsed_time, 'seconds')
 
+    print('End of indexing...')
 
 def index_file(doc, index, doc_id):
+    # Get sentences in each document
     sentences = sent_tokenize(doc)
     for sentence in sentences:
+        # Get each word in a sentence
         words = word_tokenize(sentence)
+        # Perform stemming
         stemmed_words = [stemmer.stem(word.lower()) for word in words]
         for i, word in enumerate(stemmed_words):
             if word in index:
+                # Current word exist in the index
                 if doc_id not in index[word]:
+                    # Since the word does not contain the documentId, append it to the list 
                     index[word].append(doc_id)
             else:
+                # Current word does not exist in the index
                 index[word] = [doc_id]
-
-
+         
 def write_block_to_disk(index, block_no):
     with open("blocks" + f'/{block_no}', 'w') as f:
-        sorted_index = sorted(index.items())
-        output_dict = {term: values for term, values in sorted_index}
+        # Sort the intermediate block dictionary
+        sorted_index = sorted(index.keys())
+        # Get same key-value pairs as index but with the keys sorted in lexicographic order
+        output_dict = {term: index[term] for term in sorted_index}
+        # Transform the output type to write into the intermediate block
         output_line = json.dumps(output_dict)
         f.write(output_line)
-
 
 def merge_blocks_on_disk(start, end):
     if end - start >= 1:
         mid = (start + end) // 2
         left = merge_blocks_on_disk(start, mid)
-        right = merge_blocks_on_disk(mid + 1, end)
+        right = merge_blocks_on_disk(mid+1, end)
         merged_block_no = merge(left, right)
         return merged_block_no
     else:
+        # Base case
         return start
 
 
@@ -118,7 +145,7 @@ def merge(left, right):
     with open(INTERMEDIATE_BLOCK + f'/{left}', 'r') as file1, open(INTERMEDIATE_BLOCK + f'/{right}', 'r') as file2:
         left_dictionary = json.load(file1)
         right_dictionary = json.load(file2)
-
+    
     for term, prop in right_dictionary.items():
         if term in left_dictionary:
             # if a term in right_dictionary can be found in left_dictionary, 
@@ -130,52 +157,78 @@ def merge(left, right):
         else:
             # if a term in right_dictionary cannot be found in left_dictionary, add the term to merged_dictionary
             merged_dictionary[term] = prop
-
+    
     for term, prop in left_dictionary.items():
         if term not in merged_dictionary:
             # if a term in left_dictionary cannot be found in merged_dictionary, add the term into to merged_dictionary
             merged_dictionary[term] = prop
-
+    
     block_no += 1
 
-    # write the merged dictionary to a new block on disk
+     # write the merged dictionary to a new block on disk
     with open(INTERMEDIATE_BLOCK + f'/{block_no}', 'w') as f:
         output_line = json.dumps(merged_dictionary)
         f.write(output_line)
 
+    # Removes the two intermediate blocks
     os.remove(INTERMEDIATE_BLOCK + f'/{left}')
     os.remove(INTERMEDIATE_BLOCK + f'/{right}')
 
     # return the index of the new merged block
     return block_no
-
-
+    
 def write_dictionary_postings_to_disk(number, out_dict, out_postings):
     merged_dictionary = {}
 
     block_file_dir = INTERMEDIATE_BLOCK + f'/{number}'
-    with open(block_file_dir, 'r') as block_file, open(f'{out_dict}', 'w') as dictionary_file, open(f'{out_postings}',
-                                                                                                    'w') as postings_file:
+    with open(block_file_dir, 'r') as block_file, open(f'{out_dict}', 'w') as dictionary_file, open(f'{out_postings}', 'w') as postings_file:
         merged_dictionary = json.load(block_file)
-        line_no = 1
+        file_ptr_pos = 0
         for term, postings_list in merged_dictionary.items():
-            sqrt_val = math.sqrt(len(postings_list))
-            skip_pointers_no = math.floor(sqrt_val)
-            skip_distance = math.floor(int(len(postings_list) / skip_pointers_no))
-            new_postings_list = []
-            next_index = 0
-            for i in range(len(postings_list)):
-                new_postings_list.append([postings_list[i]])
-                if skip_pointers_no != 0:
-                    if i == 0 or i == next_index:
-                        next_index = i + skip_distance - 1
-                        new_postings_list[i].append(postings_list[next_index])
-                        skip_pointers_no -= 1
 
-            postings_file.write(term + " " + str(new_postings_list) + "\n")
-            dictionary_file.write(term + " " + str(len(new_postings_list)) + " " + str(line_no) + "\n")
-            line_no += 1
+            new_postings_list = str(get_skip_pointers(postings_list))
+            # write the current term
+            postings_file.write(term + " ")
+            # Get the starting position of the list
+            file_ptr_pos = postings_file.tell()
+            # Write the list to the file
+            postings_file.write(new_postings_list)
+            # Move the file_ptr_pos to the starting position of the array that was just written
+            postings_file.seek(file_ptr_pos + len(new_postings_list))
+            # Write a new line for the next dictionary entry
+            postings_file.write("\n")
 
+            # Add the file_ptr_pos reference for each term for quick access
+            dictionary_file.write(term + " " + str(len(new_postings_list)) + " " + str(file_ptr_pos) + "\n")
+
+def get_skip_pointers(postings_list):
+    postings_list_builder = []
+    if len(postings_list) == 1:
+        postings_list_builder.append(postings_list[0])
+    else:
+        # Calculate the number of skip pointers by perform sqrt() of the postings list length
+        skip_pointer_counter = math.isqrt(len(postings_list))
+        # Calculate the average skip distance
+        skip_distance = math.floor(len(postings_list) / skip_pointer_counter)
+        # Iterate through each documentId in postings_list
+        for i in range(len(postings_list)):
+            # Check for the neccessary conditions for a skip pointer
+            if i % skip_distance == 0 and i + skip_distance < len(postings_list):
+                # Append the current documentId (value of i) to the previous idx element
+                postings_list_builder.append([postings_list[i], i + skip_distance])
+                skip_pointer_counter -= 1
+            elif i % skip_distance == 0 and i + skip_distance >= len(postings_list):
+                # Append the current documentId (value of i) to the last idx of postings_list
+                postings_list_builder.append([postings_list[i], len(postings_list) - 1])
+                skip_pointer_counter -= 1
+            else:
+                # By default, an element in the postings_list will be a element
+                postings_list_builder.append(postings_list[i])
+        
+        if skip_pointer_counter > 0:
+            print(f"Error. There is a total of {skip_pointer_counter} not being used...")
+
+    return postings_list_builder
 
 input_directory = output_file_dictionary = output_file_postings = None
 
@@ -186,11 +239,11 @@ except getopt.GetoptError:
     sys.exit(2)
 
 for o, a in opts:
-    if o == '-i':  # input directory
+    if o == '-i': # input directory
         input_directory = a
-    elif o == '-d':  # dictionary file
+    elif o == '-d': # dictionary file
         output_file_dictionary = a
-    elif o == '-p':  # postings file
+    elif o == '-p': # postings file
         output_file_postings = a
     else:
         assert False, "unhandled option"
