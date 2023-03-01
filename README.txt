@@ -1,6 +1,6 @@
 This is the README file for A0218297U and A0238889B's submission
 #TODO add email
-Email(s): e0000000@u.nus.edu, e0773487@u.nus.edu
+Email(s): e0544333@u.nus.edu, e0773487@u.nus.edu
 
 == Python Version ==
 

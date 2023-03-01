@@ -141,7 +141,11 @@ def process_query(tokens, term_dictionary, postings_file, doc_id_set):
                 intermediate_result = process_or_operator(operands)
             stack.append(intermediate_result)
     if len(stack) > 0:
-        return stack.pop()
+        query_result = stack.pop()
+        if type(query_result) == str:
+            query_result = get_postings_list(query_result, term_dictionary, postings_file)
+        return query_result
+
 
 def posting_list_type_check(operand, term_dictionary, postings_file):
     if type(operand) != list:
