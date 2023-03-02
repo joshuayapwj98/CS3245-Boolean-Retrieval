@@ -50,8 +50,6 @@ def build_index(in_dir, out_dict, out_postings):
     """
 
     global BLOCK_SIZE
-    if in_dir == './sample_training_folder':
-        BLOCK_SIZE = 1
 
     print('start of indexing')
 
