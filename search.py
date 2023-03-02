@@ -45,18 +45,22 @@ def run_search(dict_file, postings_file, queries_file, results_file):
 
         # Process each query and write results to the results file
         for i, query in enumerate(queries):
-            post_fix = get_postfix(query)
-            query_results = process_query(post_fix, term_dictionary, postings_file, doc_id_set)
-            string_builder = ''
-            for id in query_results:
-                if type(id) == list:
-                    string_builder = ' '.join(str(i) for i in id)
-                else:   
-                    string_builder += str(id) + ' '
-            string_builder = string_builder.rstrip()
-            results_file.write(string_builder)
-            if i < len(queries) - 1:
+            if query == '':
+                # Empty line in queries.txt
                 results_file.write("\n")
+            else:
+                post_fix = get_postfix(query)
+                query_results = process_query(post_fix, term_dictionary, postings_file, doc_id_set)
+                string_builder = ''
+                for id in query_results:
+                    if type(id) == list:
+                        string_builder = ' '.join(str(i) for i in id)
+                    else:   
+                        string_builder += str(id) + ' '
+                string_builder = string_builder.rstrip()
+                results_file.write(string_builder)
+                if i < len(queries) - 1:
+                    results_file.write("\n")
 
 def get_postfix(infix):
     """
