@@ -287,19 +287,12 @@ def union_merge(postings_list1, postings_list2):
     merged_postings_list = []
     p1 = p2 = 0
 
+    postings_list1 = flatten(postings_list1)
+    postings_list2 = flatten(postings_list2)
+
     while p1 < len(postings_list1) and p2 < len(postings_list2):
-        list1_value = None
-        list2_value = None
-
-        if type(postings_list1[p1]) == list:
-            list1_value, _ = postings_list1[p1]
-        else:
-            list1_value = postings_list1[p1]
-
-        if type(postings_list2[p2]) == list:
-            list2_value, _ = postings_list2[p2]
-        else:
-            list2_value = postings_list2[p2]
+        list1_value = postings_list1[p1]
+        list2_value = postings_list2[p2]
 
         if list1_value == list2_value:
             # Found a match
