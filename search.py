@@ -7,7 +7,7 @@ import getopt
 def usage():
     print("usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results")
 
-ops_dict = {'OR': 0, 'AND': 1, 'NOT': 2}
+ops_dict = {'OR': 0, 'AND': 1, 'NOT': 2, '(': 3, ')': 3}
 
 doc_id_set = {}
 stemmer = PorterStemmer()
@@ -72,24 +72,27 @@ def get_postfix(infix):
         if token in ops_dict:
             # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
             while operators and operators[-1] in ops_dict and \
-                ops_dict[operators[-1]] > ops_dict[token]:
+                  ops_dict[operators[-1]] > ops_dict[token]:
+                # Append the operator into the postfix list
+                # Pop the operator from the operators stack
                 postfix.append(operators.pop())
             operators.append(token)
         elif token == '(':
             operators.append(token)
         elif token == ')':
-            while len(operators) > 0 and operators[-1] != "(":
+            while operators[-1] != "(":
                 postfix.append(operators.pop())
+            operators.pop()
             if len(operators) == 0:
                 # Incomplete parenthesis, exit the program
                 exit()
-            if operators[-1] == "(":
-                operators.pop()
         else:
             postfix.append(stemmer.stem(token.lower()))
     
-    operators.reverse()
-    postfix.extend(operators)
+    while operators:
+        postfix.append(operators.pop())
+    
+    postfix = [token for token in postfix if token not in ['(', ')']]
     return postfix
     
 
@@ -199,10 +202,11 @@ def intersect_merge_AND(postings_list1, postings_list2):
             # Case 2: list1_value < list2_value
             elif list1_value < list2_value:
                 if list1_skip_ptr != None and get_postings_list_value(postings_list1, list1_skip_ptr) <= list2_value:
-                    next_element = postings_list1[list1_skip_ptr]
-                    if p1 == len(postings_list1)-1:
+                    p1 = list1_skip_ptr
+                    if p1 == len(postings_list1):
                         p1 += 1
                     else:
+                        next_element = postings_list1[list1_skip_ptr]
                         # Continuously attempt to skip
                         while type(next_element) == list and next_element[0] <= list2_value:
                             p1 = list1_skip_ptr
@@ -210,16 +214,19 @@ def intersect_merge_AND(postings_list1, postings_list2):
                                 # the next element is also contains a skip pointer
                                 list1_skip_ptr = next_element[1]
                                 next_element = postings_list1[list1_skip_ptr]
+                            else:
+                                break
                 else:
                     p1 += 1
 
             # Case 3: list1_value >= list2_value
             else:
                 if list2_skip_ptr != None and get_postings_list_value(postings_list2, list2_skip_ptr) <= list1_value:
-                    next_element = postings_list2[list2_skip_ptr]
-                    if p2 == len(postings_list2)-1:
+                    p2 = list2_skip_ptr
+                    if p2 == len(postings_list2):
                         p2 += 1
                     else:
+                        next_element = postings_list2[list2_skip_ptr]
                         # Continuously attempt to skip
                         while type(next_element) == list and next_element[0] <= list1_value:
                             p2 = list2_skip_ptr
@@ -227,6 +234,8 @@ def intersect_merge_AND(postings_list1, postings_list2):
                                 # the next element is also contains a skip pointer
                                 list2_skip_ptr = next_element[1]
                                 next_element = postings_list2[list2_skip_ptr]
+                            else:
+                                break
                 else:
                     p2 += 1
 
