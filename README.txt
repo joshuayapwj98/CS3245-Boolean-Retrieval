@@ -1,5 +1,4 @@
 This is the README file for A0218297U and A0238889B's submission
-#TODO add email
 Email(s): e0544333@u.nus.edu, e0773487@u.nus.edu
 
 == Python Version ==
@@ -12,11 +11,32 @@ Give an overview of your program, describe the important algorithms/steps
 in your program, and discuss your experiments in general.  A few paragraphs 
 are usually sufficient.
 
+The program indexes a list of supplied documents using BSBI and outputs a dictionary
+of the terms and a postings list file. The program then allows the user to input a
+list of boolean queries to be processed. The corresponding document ids are then returned.
+Terms are stemmed using the Porter Stemmer algorithm and converted to lower case.
+
+The dictionary is stored in a text file with each line representing a term,
+its document frequency, and the byte position of the postings list for that term in the postings list file.
+The postings list file contains the document ids of the documents that contain the term, with skip pointers.
+
+Search uses shunting yard algorithm to convert the query to postfix notation, and then evaluates the query using a stack.
+
 == Files included with this submission ==
 
 List the files in your submission here and provide a short 1 line
 description of each file.  Make sure your submission's files are named
 and formatted correctly.
+
+1. README.txt - This file.
+
+2. index.py - Code for indexing the documents in the corpus.
+
+3. search.py - Code for processing boolean queries.
+
+4. dictionary.txt - Dictionary of terms and their corresponding document frequencies and byte position in the postings list file.
+
+5. postings.txt - Postings list file containing the document ids with skip pointers.
 
 == Statement of individual work ==
 
@@ -34,6 +54,10 @@ assignment, because of the following reason:
 <Please fill in>
 
 We suggest that we should be graded as follows:
+
+- Correctness of code
+- Documentation in index.py, search.py, and in this README
+- Evaluation results
 
 <Please fill in>
 
