@@ -11,16 +11,27 @@ Give an overview of your program, describe the important algorithms/steps
 in your program, and discuss your experiments in general.  A few paragraphs 
 are usually sufficient.
 
-The program indexes a list of supplied documents using BSBI and outputs a dictionary
-of the terms and a postings list file. The program then allows the user to input a
-list of boolean queries to be processed. The corresponding document ids are then returned.
-Terms are stemmed using the Porter Stemmer algorithm and converted to lower case.
+The program indexes a list of supplied documents using SPIMI but with a fixed block size
+and outputs a dictionary of the terms and a postings list file. We split the documents
+into blocks of X documents, where X is a predefined block size of 2000. For each term in
+each document in block, they are first stemmed using the Porter Stemmer algorithm
+and converted to lower case. Then the terms are added to a dictionary,  where the key
+is the term and value is list of documents ID. Since, we are processing documents in increasing
+documents IDs, we know that the list of document ID will be monotonically increasing.
+When the last document in the block is processed, the dictionary is sorted by the term and
+written to a file.
 
-The dictionary is stored in a text file with each line representing a term,
-its document frequency, and the byte position of the postings list for that term in the postings list file.
-The postings list file contains the document ids of the documents that contain the term, with skip pointers.
+Once all the blocks are processed, 2 way merge is performed to combine them. The dictionary
+is stored in a text file with each line representing a term, its document frequency, and the
+byte position of the postings list for that term in the postings list file. The postings list
+file contains the document ids of the documents that contain the term, with skip pointers.
 
-Search uses shunting yard algorithm to convert the query to postfix notation, and then evaluates the query using a stack.
+The program then allows the user to input a list of boolean queries to be processed
+for their corresponding document ids.
+
+Search uses shunting yard algorithm to convert the query to postfix notation,
+and then evaluates the query using a stack. For intersection merge (i.e. AND operator),
+we use a skip pointer as described in lecture  to optimise the merge.
 
 == Files included with this submission ==
 
