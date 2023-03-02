@@ -68,7 +68,7 @@ def get_postfix(infix):
     global ops_dict
 
     # Split the infix expression into tokens
-    tokens = split_string(infix)
+    tokens = tokenize(infix)
 
     for token in tokens:
         if token in ops_dict:
@@ -99,7 +99,7 @@ def get_postfix(infix):
     return postfix
     
 
-def split_string(query):
+def tokenize(query):
     """
     Tokenizes a string by separating individual strings separated by spaces,
     opening and closing parentheses will appear as individual tokens.
