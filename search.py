@@ -14,8 +14,8 @@ stemmer = PorterStemmer()
 
 def run_search(dict_file, postings_file, queries_file, results_file):
     """
-    using the given dictionary file and postings file,
-    perform searching on the given queries file and output the results to a file
+    Performs searching on the given queries file and output the results to a file
+    using the given dictionary file and postings file.
     """
     print('running search on the queries...')
     global doc_id_set
@@ -34,14 +34,16 @@ def run_search(dict_file, postings_file, queries_file, results_file):
             term, doc_frequency, file_ptr_pos = line.split()
             term_dictionary[term] = (doc_frequency, file_ptr_pos)
 
-    with open(f'{queries_file}', "r") as queries_file, open(f'{postings_file}', 'r') as postings_file,\
+    with open(f'{queries_file}', "r") as queries_file,\
+            open(f'{postings_file}', 'r') as postings_file,\
             open(f'{results_file}', "w") as results_file:
         # Read the queries file as raw string
-        
         doc_id_set = list(get_postings_list('all_dict', term_dictionary, postings_file))
 
         queries_text = queries_file.read()
         queries = queries_text.split('\n')
+
+        # Process each query and write results to the results file
         for i, query in enumerate(queries):
             post_fix = get_postfix(query)
             query_results = process_query(post_fix, term_dictionary, postings_file, doc_id_set)
@@ -57,9 +59,9 @@ def run_search(dict_file, postings_file, queries_file, results_file):
                 results_file.write("\n")
 
 def get_postfix(infix):
-    """Convert an infix expression to RPN using the Shunting Yard algorithm."""
-    # Define operator precedence
-
+    """
+    Converts an infix expression to Reverse Polish Notation using the Shunting Yard algorithm.
+    """
     # Initialize stack and queue
     operators = []
     postfix = []
@@ -70,7 +72,8 @@ def get_postfix(infix):
 
     for token in tokens:
         if token in ops_dict:
-            # Check if the top operator is in the ops_dict and the precedence of it is greater than the current token
+            # Check if the top operator is in the ops_dict and the
+            # precedence of it is greater than the current token
             while operators and operators[-1] in ops_dict and \
                 ops_dict[operators[-1]] > ops_dict[token]:
                 postfix.append(operators.pop())
@@ -94,6 +97,10 @@ def get_postfix(infix):
     
 
 def split_string(query):
+    """
+    Tokenizes a string by separating individual strings separated by spaces,
+    opening and closing parentheses will appear as individual tokens.
+    """
     tokens = []
     curr = ''
 
@@ -116,6 +123,12 @@ def split_string(query):
     return tokens
 
 def process_query(tokens, term_dictionary, postings_file, doc_id_set):
+    """
+    Processes the boolean query and returns a postings lists.
+
+    Queries are input as tokens in Reverse Polish Notation. A list of all documents
+    ids is also taken as input to process negation operations.
+    """
     stack = []
     for token in tokens:
         if token not in ops_dict:
@@ -127,14 +140,17 @@ def process_query(tokens, term_dictionary, postings_file, doc_id_set):
             operands = []
             intermediate_result = []
             if token == 'NOT':
-                # Perform negatation on the term. This returns a postings_list that contains elements not in left_operand
+                # Perform negatation on the term
+                # Returns a postings_list that contains elements not in left_operand
                 intermediate_result = posting_list_negation(doc_id_set, left_operand)
+
             elif token == 'AND':
                 # Pop the next term in the stack and retrieve the postings_list 
                 right_operand = posting_list_type_check(stack.pop(), term_dictionary, postings_file)
                 operands = [left_operand, right_operand]
                 # Perform 'AND' operation on the operands and gets the postings_list
                 intermediate_result = process_and_operator(operands)
+
             elif token == 'OR':
                 # Perform 'OR' operation on the operands and gets the postings_list
                 right_operand = posting_list_type_check(stack.pop(), term_dictionary, postings_file)
@@ -151,6 +167,9 @@ def process_query(tokens, term_dictionary, postings_file, doc_id_set):
 
 
 def posting_list_type_check(operand, term_dictionary, postings_file):
+    """
+    Returns the postings_list of the operand if it is a string term.
+    """
     if type(operand) != list:
         # Get the operand's postings_list
         operand = get_postings_list(operand, term_dictionary, postings_file)
@@ -159,16 +178,14 @@ def posting_list_type_check(operand, term_dictionary, postings_file):
 # ============== [START] AND OPERATIONS ==============
 def process_and_operator(operands):
     """
-    Process AND operators and operands.
-
-    If there is a NOT operator, then the NOT operator will be the last operand.
+    Processes AND operator and returns a postings_list.
     """
     return intersect_merge_AND(operands[0], operands[1])
 
 
 def intersect_merge_AND(postings_list1, postings_list2):
     """
-    Merge two postings lists using the intersect merge algorithm with skip pointers.
+    Merges two postings lists using the intersect merge algorithm with skip pointers.
     """
     merged_postings_list = []
     p1 = p2 = 0
@@ -233,6 +250,9 @@ def intersect_merge_AND(postings_list1, postings_list2):
     return merged_postings_list
 
 def get_postings_list_value(postings_list, ptr):
+    """
+    Returns value of the postings_list at the given pointer.
+    """
     left_comparator = 0
     if type(postings_list[ptr]) == list:
         left_comparator = postings_list[ptr][0]
@@ -247,16 +267,13 @@ def get_postings_list_value(postings_list, ptr):
 # ============== [START] OR OPERATIONS ==============
 def process_or_operator(operands):
     """
-        Process OR operators.
-
-        If there is a NOT operator, then the NOT operator will be the last operand.
-        """
-    # union merge the two postings_list
+    Processes OR operator and returns a postings_list.
+    """
     return union_merge(operands[0], operands[1])
 
 def union_merge(postings_list1, postings_list2):
     """
-    Merge two postings lists using the union merge algorithm.
+    Merges two postings lists using the union merge algorithm.
     """
     merged_postings_list = []
     p1 = p2 = 0
@@ -303,7 +320,7 @@ def union_merge(postings_list1, postings_list2):
 # ============== [START] NOT OPERATIONS ==============
 def posting_list_negation(posting_list_all, posting_list1):
     """
-    Get the postings list for the NOT operator.
+    Returns the negated postings list.
     """
     result = []
     p1 = p_all = 0
@@ -335,7 +352,7 @@ def posting_list_negation(posting_list_all, posting_list1):
 
 def intersect_merge_NOT(postings_list1, postings_list2):
     """
-    Merge two postings list, removing the postings in postings_list1 from postings_list2.
+    Merges two postings list, removing the postings in postings_list2 from postings_list1.
     """
     merged_postings_list = []
     postings_list1 = flatten(postings_list1)
@@ -351,6 +368,9 @@ def intersect_merge_NOT(postings_list1, postings_list2):
         return merged_postings_list
 
 def flatten(posting_list):
+    """
+    Flattens a postings list by removing skip pointers.
+    """
     postings_list_build = []
     for term in posting_list:
         if type(term) == list:
@@ -360,10 +380,10 @@ def flatten(posting_list):
 # ============== [END] NOT OPERATIONS ==============
         
 
-def get_postings_list(term, term_dictionary, postings_file, temp_dict = None):
-    if temp_dict and term[0] == "*":
-        return temp_dict.get(term[1:])
-
+def get_postings_list(term, term_dictionary, postings_file):
+    """
+    Returns the postings list for the given term.
+    """
     if term not in term_dictionary:
         return []
     
